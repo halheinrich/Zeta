@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    TargetFramework, LangVersion, Nullable, ImplicitUsings, analyzer settings
+    and XML doc generation all come from Directory.Build.props.
+  -->
+  <PropertyGroup>
+    <RootNamespace>HalHeinrich.Numerics</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    RealConstants by ProjectReference, per the umbrella's ruling on
+    intra-umbrella edges. The path escapes this repository: it resolves only
+    when this checkout sits beside a RealConstants checkout, which must itself
+    sit beside a RationalApproximation checkout, which must sit beside a
+    BigRationalLibrary checkout, as they all do inside the umbrella.
+    RationalApproximation and BigRational arrive transitively through this one
+    edge rather than being referenced again here - a second or third direct
+    reference would be two more places to keep the same decision, and the
+    transitive ones already put every type in scope. That was measured rather
+    than inferred: a call using Approximation and BigRational was compiled here
+    with only this reference present, before any second one was considered, and
+    it resolved. See README.md - Building.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\RealConstants\RealConstants\RealConstants.csproj" />
+  </ItemGroup>
+
+</Project>

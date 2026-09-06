@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    TargetFramework, LangVersion, Nullable, ImplicitUsings, analyzer settings
+    and XML doc generation all come from Directory.Build.props.
+  -->
+  <PropertyGroup>
+    <RootNamespace>HalHeinrich.Numerics.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+
+    <!--
+      GenerateDocumentationFile is inherited as true, and this project does not
+      opt out. Documentation generation is IDE0005's documented prerequisite
+      (roslyn#41640), so opting out would make that rule structurally unable to
+      fire here and "0 warnings under AnalysisMode=All" would quietly mean less
+      in this project than in the product one - halheinrich/Math#43. An unused
+      using rots identically in a test.
+
+      The undocumented-member warning that generation then provokes is
+      suppressed instead. Test methods are named, not documented; CS1591 is the
+      only part of doc generation this project wants no part of.
+    -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Zeta\Zeta.csproj" />
+  </ItemGroup>
+
+</Project>

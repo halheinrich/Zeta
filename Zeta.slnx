@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Zeta.Tests/Zeta.Tests.csproj" />
+  <Project Path="Zeta/Zeta.csproj" />
+</Solution>
