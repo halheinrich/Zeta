@@ -1,0 +1,14 @@
+# One rule, stated once: every text file is LF in the blob and LF on checkout.
+#
+# Ruled 2026-09-05 (halheinrich/Math#50); `../VISION.md` § Conventions carries
+# the reasoning. `.editorconfig` states the same rule to the editor at `[*]`,
+# because two mechanisms need the answer — git at checkout, the editor while
+# writing — and they must say the same thing.
+#
+# No per-extension exceptions, deliberately. This member never carried any: it
+# was created after that ruling, so there is no list here that once diverged
+# and no conversion to record. The reason not to introduce one now is the
+# reason the ruling gives — a list of extensions is written here and again in
+# `.editorconfig`, and a list kept in two files cannot be kept in sync, only
+# re-diverged.
+* text=auto eol=lf

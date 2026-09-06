@@ -1,0 +1,161 @@
+<Project>
+
+  <!--
+    Centralized build settings. Values defined here apply to every project in
+    the solution; individual .csproj files only override when they need to
+    diverge. Keeps the "best-practice baseline" in one place.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>All</AnalysisMode>
+  </PropertyGroup>
+
+  <!--
+    Generate XML documentation for every project, the test project included.
+    (We can't gate this on $(IsPackable) here because the SDK locks in its
+    decision before Directory.Build.targets runs.)
+
+    The test project is not exempt, and that is the ruled arrangement rather
+    than an omission here - halheinrich/Math#43. Documentation generation is
+    IDE0005's documented prerequisite (roslyn#41640), so a test project opting
+    out makes that rule structurally unable to fire in it, and "0 warnings
+    under AnalysisMode=All" then quietly means less there than in the product
+    project. This member was created after that ruling and so has never had
+    the hole; its test project inherits this value and suppresses CS1591
+    instead, so the baseline means one thing in both projects rather than two
+    things depending on which you are in.
+  -->
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!--
+    Every ProjectReference builds in the configuration its consumer was asked
+    for. halheinrich/Math#47.
+
+    Without this, a Release build of this member links the *Debug* build of
+    everything it references, and every "0 warnings in Release" and "passes in
+    Release" recorded here would have been measured against Debug producers.
+    This repository has one reference that escapes it - the one in
+    Zeta.csproj to ..\..\RealConstants - and that project in turn carries the
+    escaping reference to ..\..\RationalApproximation, which carries one to
+    ..\..\BigRationalLibrary, so the chain is three hops long and all three are
+    affected. This is the longest such chain in the umbrella, which is a
+    consequence of being the member that composes rather than provides.
+    Zeta.slnx lists only this member's own two projects, and a solution assigns
+    a configuration only to the projects it contains.
+
+    This member was born with the property rather than retrofitted with it, so
+    there is no before-and-after measurement to quote here; the sibling that
+    diagnosed it has one. What was measured here is the after state, by the
+    umbrella gate named below, which is the check that matters in either case.
+
+    That is stated as the comparison rather than as a pair of hashes on
+    purpose — halheinrich/Math#49. The SDK embeds the producer's HEAD sha in
+    AssemblyInformationalVersion, so a producer hash identifies a *commit*
+    rather than a source state and is false as soon as the producer commits
+    again. The check is: build the producer in Release, build this member in
+    Release with -t:Rebuild, and compare the two BigRationalLibrary.dll files
+    by hashes computed in the same run. tools/check-release-linkage.sh in the
+    umbrella is what does that, and it is what verified this change rather
+    than the session's own report.
+
+    Why the metadata that looks like the obvious fix is not the fix. Setting
+    SetConfiguration on the ProjectReference is applied at evaluation and then
+    overwritten at build, measured in four rows on the issue by the
+    ContinuedFractions session. In Microsoft.Common.CurrentVersion.targets on
+    SDK 10.0.400, line 1584 defaults ShouldUnsetParentConfigurationAndPlatform
+    to true whenever BuildingSolutionFile or BuildingInsideVisualStudio is
+    set, and line 1609 hands it to the AssignProjectConfiguration task, whose
+    job is then to rewrite SetConfiguration on every reference absent from the
+    solution map, unsetting the parent's configuration so the referenced
+    project falls back to its own default.
+
+    Line 1584's condition names BuildingInsideVisualStudio as well, so this
+    was never confined to `dotnet build <solution>`: Release builds inside
+    Visual Studio 2026 linked the Debug producer too. CI never saw it from
+    either direction — .github/workflows/build-and-test.yml builds the
+    solution with no -c and is therefore Debug-only, so the one configuration
+    this defect lives in is the one configuration CI does not build. Nothing
+    about the workflow changes here.
+
+    Flagged rather than quietly relied on, on three counts. It overrides an
+    MSBuild default instead of working with it. The property is not part of
+    the documented public surface; it lives in the SDK's targets, which is
+    where it was read, so an SDK upgrade may change it with no error and a
+    silently wrong binary as the symptom. And it propagates Platform as well
+    as Configuration, which is harmless only while every member is
+    AnyCPU-only. The default exists so a solution configuration is not forced
+    onto a project that may not define it; every member here defines exactly
+    Debug and Release with no platform variation, so the condition it guards
+    against does not arise. If either premise changes, this is the decision to
+    revisit.
+
+    Preferred over listing BigRationalLibrary in this member's solution, which
+    also works and uses only supported solution semantics: membership puts a
+    foreign project inside this member's solution, scales with dependency
+    depth as the graph grows, and when incomplete it fails silently, restoring
+    exactly this bug with exactly this symptom.
+  -->
+  <PropertyGroup>
+    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
+  </PropertyGroup>
+
+  <!--
+    Lock-file based version pinning. The lock file (packages.lock.json)
+    captures exactly the resolved package versions and is committed to git,
+    so any clone restores the same dependency graph. RestoreLockedMode fails
+    the restore if the lock file is out of sync with the csproj.
+
+    Unconditional, deliberately. The setting was once gated on
+    ContinuousIntegrationBuild elsewhere in this umbrella; that gate is gone
+    there and this member has never carried it. Line numbers into
+    build-and-test.yml are deliberately not quoted here - they are drift-prone
+    in exactly the way a doc claim about another file always is. The workflow
+    does pass -p:ContinuousIntegrationBuild=true on restore, build and test,
+    which is what makes every stage agree; it is no longer what makes locked
+    mode live.
+    The old rationale — "only enabled in CI so local `dotnet add package` keeps
+    working" — described a real tradeoff, not an oversight, and being
+    unconditional gives that convenience up on purpose.
+
+    What is bought. The guarantee held only where a switch set in another
+    directory happened to be passed, so the file could not state its own
+    promise; and locally it did not hold at all. A local restore *updates* a
+    lock rather than enforcing it, which is how a committed lock elsewhere in
+    this project sat at preview1 against a preview2 producer for weeks,
+    through four arcs, with every local build passing. Unconditional gives
+    the working tree the guarantee CI already had.
+
+    What is paid is exactly the convenience the old rationale named:
+    `dotnet add package`, and any deliberate version edit, now fails with
+    NU1004 instead of quietly updating the lock. Recover with
+    `dotnet restore -p:RestoreForceEvaluate=true`, which is what the CLI's
+    force-evaluate switch sets, and commit the regenerated lock. One command,
+    once per intended change, on an artefact whose whole purpose is that it
+    does not change silently. (The switch is spelled here as a property
+    because an XML comment may not contain a double hyphen.)
+
+    What it does not buy, measured in this umbrella rather than assumed:
+    locked mode compares the lock against PackageReference versions, not
+    against the version a ProjectReference contributes. A ProjectReference
+    version bump leaves the lock stale and restore passes in locked mode
+    regardless, so that kind of change still needs a force-evaluated restore
+    to reach the lock — nothing below will catch it.
+  -->
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode>true</RestoreLockedMode>
+  </PropertyGroup>
+
+</Project>

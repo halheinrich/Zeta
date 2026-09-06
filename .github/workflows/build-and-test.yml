@@ -1,0 +1,173 @@
+# Build-and-test gate for Zeta.
+#
+# THE PROBLEM THIS WORKFLOW EXISTS TO SOLVE
+#
+# This repository does not build standalone. Per the umbrella's ruling that
+# intra-umbrella edges are ProjectReference, the library references
+#
+#   ..\..\RealConstants\RealConstants\RealConstants.csproj
+#
+# which escapes the repo - and that project in turn references
+# RationalApproximation by a reference that escapes *its* repo, which in turn
+# references BigRationalLibrary the same way. So the layout this build needs is
+# four sibling checkouts, not two: this member composes rather than provides,
+# and the chain is correspondingly the longest in the umbrella. A checkout of
+# this repository alone cannot restore, let alone build. A workflow that
+# ignored that would be the one failure mode this project cares most about: a
+# gate sitting green while compiling nothing.
+#
+# WHAT THIS DOES INSTEAD
+#
+# It reconstructs the minimum of the umbrella layout that the chain of
+# references needs, by checking out all four repositories into sibling paths in
+# the workspace:
+#
+#   $GITHUB_WORKSPACE/
+#     BigRationalLibrary/          <- halheinrich/BigRationalLibrary @ main
+#     RationalApproximation/       <- halheinrich/RationalApproximation @ main
+#     RealConstants/               <- halheinrich/RealConstants @ main
+#     Zeta/                        <- the commit under test
+#
+# Two alternatives were weighed and rejected:
+#
+#   - A submodule-aware checkout of halheinrich/Math. The umbrella is private,
+#     so it needs a cross-repo PAT this repo does not have. Decisively, and
+#     independent of the secret: the umbrella PINS a submodule SHA, so a push
+#     to this repo's main would check out the pinned Zeta rather than the
+#     commit that triggered the run. The gate would compile the wrong code and
+#     report on it.
+#
+#   - An inert workflow, deferred until per-repo CI is designed. That is the
+#     green-while-building-nothing failure mode with extra steps.
+#
+# THE ONE COMPROMISE, STATED PLAINLY
+#
+# All three dependencies are taken at main, not at the SHAs the umbrella pins.
+# This workflow cannot read those pins without the private umbrella. So this
+# gate tests integration against its dependencies' tips, and can go red for a
+# reason outside this repo. That is deliberate: BigRational is breaking its
+# surface at 0.1.0-preview1 and RationalApproximation's contracts are younger
+# still, so a consumer-side gate that notices immediately is worth more than
+# one that agrees with a stale pin. When a red build traces upstream, the fix
+# is upstream. The exposure is larger here than in any sibling for the same
+# reason the checkout list is longer.
+#
+# Debug only. Release is measured across the umbrella by
+# tools/check-release-linkage.sh, which needs the whole submodule graph in one
+# checkout and therefore cannot run here.
+
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    # A HANG IS NOT A FAILURE, and this is the outer half of that guard. The
+    # Test step's grep catches a suite that discovers nothing and reports
+    # green; neither that nor any in-process guard fires if the job never
+    # reports at all - a wedged restore, a hung runner, a defect that deadlocks
+    # before xunit is reached - and GitHub's default job timeout is 360
+    # minutes, so silence would burn six hours before anything went red.
+    #
+    # Ten minutes, matching the sibling template. That is over an order of
+    # magnitude of headroom on a suite of this size: it absorbs a cold NuGet
+    # restore, an uncached SDK install and a slow runner without ever being the
+    # reason a legitimate run goes red, while turning a genuine hang into a red
+    # mark in minutes rather than hours. It is not a performance budget, and it
+    # must not be tightened into one - a timeout that trips on a slow-but-
+    # correct run teaches people to ignore it.
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: Zeta
+
+    steps:
+      - name: Checkout Zeta
+        uses: actions/checkout@v6
+        with:
+          path: Zeta
+
+      - name: Checkout RealConstants (the escaping ProjectReference target)
+        uses: actions/checkout@v6
+        with:
+          repository: halheinrich/RealConstants
+          ref: main
+          path: RealConstants
+
+      - name: Checkout RationalApproximation (what RealConstants in turn needs)
+        uses: actions/checkout@v6
+        with:
+          repository: halheinrich/RationalApproximation
+          ref: main
+          path: RationalApproximation
+
+      - name: Checkout BigRationalLibrary (the third hop)
+        uses: actions/checkout@v6
+        with:
+          repository: halheinrich/BigRationalLibrary
+          ref: main
+          path: BigRationalLibrary
+
+      # Fail loudly and specifically if the reconstructed layout is wrong,
+      # rather than letting it surface as an opaque restore error. All three
+      # hops are checked: a missing later hop fails just as totally as a
+      # missing first one, and reports far less clearly.
+      - name: Verify the sibling layout the ProjectReferences need
+        run: |
+          for target in \
+            "../RealConstants/RealConstants/RealConstants.csproj" \
+            "../RationalApproximation/RationalApproximation/RationalApproximation.csproj" \
+            "../BigRationalLibrary/BigRationalLibrary/BigRationalLibrary.csproj"; do
+            if [ ! -f "$target" ]; then
+              echo "::error::$target is missing - a sibling checkout did not land where a ProjectReference expects."
+              exit 1
+            fi
+            echo "Found $target"
+          done
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      # ContinuousIntegrationBuild=true is carried through restore, build and
+      # test so every stage agrees on it. It no longer gates RestoreLockedMode,
+      # which Directory.Build.props sets unconditionally - the lock file is
+      # enforced in a working tree and on a runner alike, and this flag is here
+      # for the deterministic-build behaviour the SDK attaches to it rather
+      # than to switch a guarantee on.
+      - name: Restore
+        run: dotnet restore Zeta.slnx -p:ContinuousIntegrationBuild=true
+
+      # No warnings-as-errors flag here on purpose. Directory.Build.props already
+      # sets TreatWarningsAsErrors with AnalysisMode=All; the workflow must not
+      # weaken that, and must not restate it either - one spelling of the rule.
+      - name: Build
+        run: dotnet build Zeta.slnx --no-restore -p:ContinuousIntegrationBuild=true
+
+      # The guard: a suite that discovers nothing must not read as a pass.
+      # This is the same failure mode the CA1515 suppression in .editorconfig
+      # guards against, checked here at the level that actually reports green.
+      - name: Test
+        run: |
+          set -o pipefail
+          dotnet test Zeta.slnx --no-build --nologo \
+            -p:ContinuousIntegrationBuild=true | tee test-output.txt
+          if ! grep -Eq 'Passed:[[:space:]]+[1-9][0-9]*' test-output.txt; then
+            echo "::error::The test run reported no passing tests. Refusing to report green."
+            exit 1
+          fi
