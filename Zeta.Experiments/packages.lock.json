@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "HalHeinrich.Numerics.BigRational": {
+        "type": "Project"
+      },
+      "rationalapproximation": {
+        "type": "Project",
+        "dependencies": {
+          "HalHeinrich.Numerics.BigRational": "[0.1.0-preview2, )"
+        }
+      },
+      "realconstants": {
+        "type": "Project",
+        "dependencies": {
+          "RationalApproximation": "[1.0.0, )"
+        }
+      },
+      "zeta": {
+        "type": "Project",
+        "dependencies": {
+          "RealConstants": "[1.0.0, )"
+        }
+      }
+    }
+  }
+}

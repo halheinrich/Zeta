@@ -119,6 +119,12 @@
         "dependencies": {
           "RealConstants": "[1.0.0, )"
         }
+      },
+      "zeta.experiments": {
+        "type": "Project",
+        "dependencies": {
+          "Zeta": "[1.0.0, )"
+        }
       }
     }
   }

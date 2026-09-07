@@ -60,6 +60,34 @@ than being added when results appear.
   scaffolding rather than a fixture: the pipeline has decisions that no real
   provider's numbers reach, and a stub is the only way to hand it the numbers
   that do.
+- **`Zeta.Experiments`** — a runnable project, not a test project. Two
+  commands: `walk`, the ζ(2) exhibit, and `target`, the π³/ζ(3) run. Everything
+  in it is `internal`, which is what `.editorconfig` expects — CA1515 is
+  suppressed only under `[**/*Tests.cs]`, so a public type here fails the
+  build.
+
+### Presentation lives here, not in the library
+
+Ruled in step 6c, the first consumer to need it. Both consumers are inside
+`Zeta.Experiments` — the walk's rival panel and the π³/ζ(3) run — so there is
+no cross-assembly consumer to serve; `Zeta`'s identity is the composition of
+§ 2 and nothing else; and `RealConstants.Experiments` puts its own presentation
+in its runner for the same reason. If a consumer ever appears outside the
+runner, moving it is additive. `Zeta.Experiments/MatrixReport.cs` carries the
+argument in full.
+
+**Two presentation decisions are pure functions with tests**, because both read
+plausibly when wrong: normalising the blame split, and truncating an exact
+rational to decimal. `Zeta.Tests` is given sight of the runner's internals for
+those alone. Testing a formatter does not make the runner a test project —
+`../AGENTS.md` § Exactness discipline separates the two by whether a run has a
+known answer and whether it depends on wall-clock time.
+
+**The ζ(2) walk is here although its answer is known**, and that is not a
+violation of the controls-are-tests rule. It is the sniff test for the
+presentation, which otherwise renders only π³/ζ(3) and so has no output a
+reader can check. It prints a table and depends on wall-clock time, which a
+test may not.
 
 ## Architecture
 
@@ -308,10 +336,10 @@ case, and they follow `TrendIteration` / `TrendRow` / `TrendMatrix` instead.
 
 ## Subproject-internal next steps
 
-- The library composes; it does not yet report. Presentation of a
-  `TrendMatrix` — the table `../SPEC-rational-ratio.md` § 2 step 6 describes,
-  formatted for a reader — has no home yet, and the first consumer that needs
-  one will decide whether it belongs here or beside the runner.
+- ~~The library composes; it does not yet report.~~ Settled in step 6c:
+  `TrendMatrix` presentation lives beside the runner, in
+  `Zeta.Experiments/MatrixReport.cs`. See § Layout for the argument. The
+  library still reports nothing, and should not start.
 - ~~No target-schedule helper.~~ `TargetSchedule.Decades` closed this in step
   6c, at the second consumer. What is *not* closed is one layer up: the same
   helper would serve `RationalApproximation`'s `ConstantRun`, and the ordering

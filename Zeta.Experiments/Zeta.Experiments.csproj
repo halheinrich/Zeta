@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    TargetFramework, LangVersion, Nullable, ImplicitUsings, analyzer settings
+    and XML doc generation all come from Directory.Build.props.
+
+    This is a runnable project, not a test project, and the distinction is
+    ruled rather than stylistic. ../AGENTS.md § Exactness discipline: a target
+    with a known answer belongs in a test project and gates CI; a target with
+    no known answer belongs here and its output is data. pi^3/zeta(3) has no
+    pass or fail, and the run depends on wall-clock time, which a test may not.
+
+    The zeta(2) walk lives here anyway, though its answer IS known. It is not
+    a control - Zeta.Tests already carries those - it is the sniff test for
+    the presentation, which otherwise has nothing whose output a reader can
+    check. Being here costs nothing; being in Zeta.Tests would make a long
+    printed table masquerade as a pass.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>HalHeinrich.Numerics.Experiments</RootNamespace>
+    <IsPackable>false</IsPackable>
+
+    <!--
+      Same arrangement as Zeta.Tests', for the same reason.
+      GenerateDocumentationFile is inherited as true because documentation
+      generation is IDE0005's documented prerequisite (roslyn#41640), so
+      opting out would make that rule structurally unable to fire here and
+      "0 warnings under AnalysisMode=All" would quietly mean less in this
+      project than in the library - halheinrich/Math#43. CS1591 is suppressed
+      instead: the types here are named rather than documented member by
+      member, and the reasoning that matters is in the remarks, not in a
+      per-parameter summary.
+    -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    One reference, and unlike the library's it does NOT escape this
+    repository - Zeta.csproj carries the escaping edge to ..\..\RealConstants
+    and everything beyond it arrives transitively through here. So this
+    project adds no new checkout requirement; see README.md § Building for the
+    four-sibling layout the chain already needs.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Zeta\Zeta.csproj" />
+  </ItemGroup>
+
+  <!--
+    Presentation makes decisions, and two of them read plausibly when wrong.
+    Normalising the blame split is the case that earned this: PowerShare and
+    DivisorShare are absolute parts of PropagatedError rather than fractions
+    of one, so rendering them directly as percentages prints 0.00% for both
+    and looks like a pipeline that has stopped rather than a formatting
+    mistake - which is what an umbrella probe of this walk did first time.
+    Truncating an exact rational to decimal is the other. Both are pure
+    functions of their inputs, so the test project is given sight of them and
+    holds them against hand-computed values.
+
+    Everything here is internal, which is also what .editorconfig's CA1515
+    arrangement expects: that rule is suppressed only under [**/*Tests.cs], so
+    a public type in this project would fail the build. The types are an
+    implementation of this runner and not a surface anything may build on.
+
+    Testing a formatter does not make this a test project. ../AGENTS.md
+    § Exactness discipline separates the two by whether a run has a known
+    answer and whether it depends on wall-clock time; a formatter has one and
+    does not.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Zeta.Tests" />
+  </ItemGroup>
+
+</Project>

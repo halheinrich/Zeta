@@ -73,6 +73,24 @@ like.
 
 - `Zeta` — the library: the composition, and nothing else.
 - `Zeta.Tests` — xUnit, against fixed inputs.
+- `Zeta.Experiments` — runnable, not a test project: a target with no known
+  answer has no pass or fail.
+
+```powershell
+dotnet run --project Zeta.Experiments -- list
+dotnet run --project Zeta.Experiments -- walk
+dotnet run --project Zeta.Experiments -- target
+```
+
+`walk` is **π²/ζ(2), whose answer is 6**, driven one provider step at a time:
+π, π² and ζ(2) each at its own step with its own bound, the composed ratio, the
+blame split, and a ladder of rival rationals being refuted beside it. It is the
+control for what `target` prints — `target`'s answer is unknown, so nothing
+about that output can be checked by reading it.
+
+`target` is **π³/ζ(3)**, and reports a denominator bound. It runs no deeper
+than its ceiling, which is a measured number rather than a computed bound: ask
+for more and it tells you what the run would have cost instead of starting it.
 
 ## Building
 
