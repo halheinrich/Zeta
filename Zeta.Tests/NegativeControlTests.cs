@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Numerics;
 
 namespace HalHeinrich.Numerics.Tests;
 
@@ -51,11 +50,11 @@ namespace HalHeinrich.Numerics.Tests;
 public sealed class NegativeControlTests
 {
     /// <summary>
-    /// The schedule. Four columns, each realising a distinct enclosure - about 1e-5, 1e-6, 1e-9
-    /// and 1e-12 - and stopping one provider step short of the sweep that cannot be run.
+    /// The schedule: 1e-3, 1e-5, 1e-7, 1e-9. Four columns, each realising a distinct enclosure -
+    /// about 1e-5, 1e-6, 1e-9 and 1e-12 - and stopping one provider step short of the sweep that
+    /// cannot be run.
     /// </summary>
-    private static readonly BigRational[] Targets =
-        [TenToTheMinus(3), TenToTheMinus(5), TenToTheMinus(7), TenToTheMinus(9)];
+    private static readonly IReadOnlyList<BigRational> Targets = TargetSchedule.Decades(3, 9, 2);
 
     /// <summary>
     /// The one run these tests read, computed once.
@@ -71,8 +70,6 @@ public sealed class NegativeControlTests
 
     private static string Inv(FormattableString message) => message.ToString(CultureInfo.InvariantCulture);
 
-    private static BigRational TenToTheMinus(int power) => new(BigInteger.One, BigInteger.Pow(10, power));
-
     [Fact]
     public void EachEnclosureRefutesThePreviousIterationsSimplestCandidate()
     {
@@ -80,7 +77,7 @@ public sealed class NegativeControlTests
         // not a stability count.
         RatioRun run = SharedRun.Value;
 
-        Assert.Equal(Targets.Length, run.Iterations.Count);
+        Assert.Equal(Targets.Count, run.Iterations.Count);
 
         for (int column = 1; column < run.Iterations.Count; column++)
         {
@@ -169,9 +166,9 @@ public sealed class NegativeControlTests
         // Sharp, not merely containing: by the last column the square is pinned to eleven decimal
         // places, so 2/3 is the only rational of any small height it still admits.
         Approximation last = run.Iterations[^1].Enclosure.Ratio.Pow(2);
-        Assert.True(last.MaxError < TenToTheMinus(11), Inv($"The final square was {last.MaxError} wide."));
-        Assert.False(last.Contains(twoThirds + TenToTheMinus(10)));
-        Assert.False(last.Contains(twoThirds - TenToTheMinus(10)));
+        Assert.True(last.MaxError < TargetSchedule.Decade(11), Inv($"The final square was {last.MaxError} wide."));
+        Assert.False(last.Contains(twoThirds + TargetSchedule.Decade(10)));
+        Assert.False(last.Contains(twoThirds - TargetSchedule.Decade(10)));
     }
 
     [Fact]
@@ -188,13 +185,13 @@ public sealed class NegativeControlTests
         // Sweep depth goes as the inverse square root of this, so a floor here is a ceiling on
         // the sweep: 1e-13 caps it around three million denominators, which is runnable.
         Assert.True(
-            realised > TenToTheMinus(13),
+            realised > TargetSchedule.Decade(13),
             Inv($"The last target realised {realised}, tighter than this class budgeted for; the sweep it implies may not finish."));
 
         // One step further down the staircase is the cliff, and it is a cliff rather than a slope.
-        refiner.RefineTo(TenToTheMinus(12));
+        refiner.RefineTo(TargetSchedule.Decade(12));
         Assert.True(
-            refiner.Current.Ratio.MaxError < TenToTheMinus(17),
+            refiner.Current.Ratio.MaxError < TargetSchedule.Decade(17),
             "The provider's next step was expected to overshoot by orders of magnitude; if it no longer does, this class's schedule can be extended.");
     }
 }

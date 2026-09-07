@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 
 namespace HalHeinrich.Numerics.Tests;
 
@@ -17,10 +18,40 @@ public sealed class TargetScheduleTests
 {
     private static string Inv(FormattableString message) => message.ToString(CultureInfo.InvariantCulture);
 
+    /// <summary>
+    /// The oracle: <c>10^-power</c>, built from integers rather than from
+    /// <see cref="TargetSchedule.Decade"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the one copy of that expression that must not be retired into
+    /// <see cref="TargetSchedule"/>, and it is a deliberate second spelling rather than the
+    /// duplication step 6c removed elsewhere.</b> Every other private copy was a caller restating
+    /// the library; this one is what the library is checked against, and an oracle written in
+    /// terms of the thing under test cannot fail when that thing is wrong. Stated here because a
+    /// later reader sweeping for the retired helper will find this and be right to ask.
+    /// </remarks>
     private static BigRational TenToTheMinus(int power) =>
-        BigRational.Pow(BigRational.FromInteger(10), -power);
+        new(BigInteger.One, BigInteger.Pow(10, power));
 
     // ---------- what it produces ----------
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(11)]
+    [InlineData(64)]
+    public void Decade_IsTenToTheMinusTheExponent(int exponent)
+    {
+        Assert.Equal(TenToTheMinus(exponent), TargetSchedule.Decade(exponent));
+    }
+
+    [Fact]
+    public void Decade_WithANegativeExponent_GivesAWholePowerOfTen()
+    {
+        // The other side of the sign, where the oracle above cannot go: BigInteger.Pow refuses a
+        // negative exponent, so this one is written as the integer it should be.
+        Assert.Equal(BigRational.FromInteger(1000), TargetSchedule.Decade(-3));
+    }
 
     [Fact]
     public void Decades_WalksEveryPowerOfTenFromTheFirstExponentToTheLast()

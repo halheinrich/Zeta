@@ -64,16 +64,29 @@ public sealed class PositiveControlTests
     /// That is a property of these providers and is assumed nowhere else: see
     /// <see cref="NegativeControlTests"/>, whose provider overshoots its target by seven orders of
     /// magnitude and whose schedule is bounded for that reason.
+    /// <para>
+    /// <b>Written out rather than built by <see cref="TargetSchedule.Decades"/>, deliberately.</b>
+    /// The exponents double, so no fixed step reaches them, and the overload that would - one
+    /// taking an arbitrary list - cannot be valid by construction, since the caller chooses the
+    /// order. It would therefore have to reject a list that does not descend, which is the
+    /// ordering rule <see cref="RatioRun"/> owns written down a second time. Listing them here
+    /// and letting <see cref="RatioRun.Execute"/> validate once is the arrangement that keeps
+    /// that rule in one place.
+    /// </para>
     /// </remarks>
     private static readonly BigRational[] Targets =
-        [TenToTheMinus(4), TenToTheMinus(8), TenToTheMinus(16), TenToTheMinus(32), TenToTheMinus(64)];
+    [
+        TargetSchedule.Decade(4),
+        TargetSchedule.Decade(8),
+        TargetSchedule.Decade(16),
+        TargetSchedule.Decade(32),
+        TargetSchedule.Decade(64),
+    ];
 
     /// <summary>The three answers, so that each control can be asked to refute the other two.</summary>
     private static readonly int[] Answers = [6, 90, 945];
 
     private static string Inv(FormattableString message) => message.ToString(CultureInfo.InvariantCulture);
-
-    private static BigRational TenToTheMinus(int power) => new(BigInteger.One, BigInteger.Pow(10, power));
 
     private static RatioRun Control(int order) =>
         RatioRun.Execute(new MachinPi(), order, new EulerMaclaurinZeta(order), Targets);
@@ -138,11 +151,11 @@ public sealed class PositiveControlTests
             "A distance of exactly zero would mean the ratio had been computed exactly, which no truncation does.");
 
         Assert.True(
-            row.Distances[^1] < TenToTheMinus(64),
+            row.Distances[^1] < TargetSchedule.Decade(64),
             Inv($"The final distance to {answer} was {row.Distances[^1]}."));
 
         Assert.True(
-            run.Matrix.Ratios[^1].MaxError < TenToTheMinus(64),
+            run.Matrix.Ratios[^1].MaxError < TargetSchedule.Decade(64),
             Inv($"The final enclosure was {run.Matrix.Ratios[^1].MaxError} wide."));
     }
 
@@ -164,8 +177,8 @@ public sealed class PositiveControlTests
 
         Assert.False(final.Contains(expected - BigRational.One));
         Assert.False(final.Contains(expected + BigRational.One));
-        Assert.False(final.Contains(expected - TenToTheMinus(40)));
-        Assert.False(final.Contains(expected + TenToTheMinus(40)));
+        Assert.False(final.Contains(expected - TargetSchedule.Decade(40)));
+        Assert.False(final.Contains(expected + TargetSchedule.Decade(40)));
 
         // And the three answers are not interchangeable. Without this, a pipeline that produced
         // some integer for every order would read as healthy as one producing the right integer.

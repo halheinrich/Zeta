@@ -55,6 +55,33 @@ public static class TargetSchedule
     // because it has no negation to get wrong, not because a suite caught the other one.
     private static readonly BigRational OneTenth = new(1, 10);
 
+    /// <summary>One error target: <c>10^-exponent</c>.</summary>
+    /// <param name="exponent">
+    /// The decimal exponent, negated - so 11 gives <c>1e-11</c>. Unrestricted in sign; a negative
+    /// one gives a target above 1, which is loose rather than invalid.
+    /// </param>
+    /// <returns>The target.</returns>
+    /// <remarks>
+    /// <para>
+    /// The atom <see cref="Decades"/> walks across a span, exposed because a caller naming a
+    /// single threshold - a test asserting a realised bound sits above <c>1e-14</c>, say - wants
+    /// exactly this and not a schedule. Before it, three test classes each carried a private
+    /// helper spelling <c>BigRational.Pow(10, -n)</c>, which is the duplication this type exists
+    /// to end; a fourth spelling here would have been the same defect in a new place.
+    /// </para>
+    /// <para>
+    /// A single value is not a schedule and encodes no ordering, so nothing in the reasoning
+    /// above about <see cref="Decades"/> declining to validate applies to it. There is no rule
+    /// here to state twice.
+    /// </para>
+    /// <para>
+    /// This is arguably <c>BigRational</c>'s to offer rather than this type's. It is not added
+    /// there because that library is published and lives in another repository, which
+    /// <c>../AGENTS.md</c> § Submodule boundary puts out of reach from here.
+    /// </para>
+    /// </remarks>
+    public static BigRational Decade(int exponent) => BigRational.Pow(OneTenth, exponent);
+
     /// <summary>
     /// The powers of ten from <c>10^-firstExponent</c> through <c>10^-lastExponent</c>, taking
     /// <paramref name="step"/> decades at a time.
@@ -115,7 +142,7 @@ public static class TargetSchedule
             // In long, then narrowed: the running exponent stays inside int because it never
             // passes lastExponent, but the addition that produces it can leave the range.
             long exponent = firstExponent + ((long)column * step);
-            targets[column] = BigRational.Pow(OneTenth, (int)exponent);
+            targets[column] = Decade((int)exponent);
         }
 
         return targets;

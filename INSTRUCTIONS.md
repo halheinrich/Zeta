@@ -72,7 +72,13 @@ sweep, iterate, assemble. `RatioIteration` is one column with the bookkeeping
 that `TrendIteration` deliberately does not carry.
 
 `TargetSchedule` is beside them rather than among them: it builds the schedule
-a run is driven to and takes no part in the method.
+a run is driven to and takes no part in the method. `Decade` is the single
+error target `Decades` walks across a span, exposed because a test naming one
+threshold wants exactly that and not a schedule — three test classes each
+carried a private copy of it before 6c, and a fourth spelling inside this type
+would have been the same defect in a new place. It is arguably `BigRational`'s
+to offer; that library is published and in another repository, which
+`../AGENTS.md` § Submodule boundary puts out of reach from here.
 
 ### The schedule builder validates its arguments, never the schedule
 
@@ -223,6 +229,8 @@ public sealed class RatioRun
 
 public static class TargetSchedule
 {
+    public static BigRational Decade(int exponent);   // 10^-exponent
+
     // 10^-first ... 10^-last, taking `step` decades at a time. Valid by
     // construction; validates its own arguments and not the schedule rule.
     public static IReadOnlyList<BigRational> Decades(int firstExponent,
