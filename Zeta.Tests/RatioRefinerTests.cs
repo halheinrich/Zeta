@@ -153,6 +153,29 @@ public sealed class RatioRefinerTests
             "This fixture wants the divisor to own most of the error.");
     }
 
+    [Fact]
+    public void Current_CarriesTheBaseEnclosureAtTheStepTheRefinerReached()
+    {
+        // What a consumer reads pi off. The base is retained because Pow discards which interval
+        // produced its image, so the alternative is re-running the provider to BaseStep from
+        // outside - the provider's own history reconstructed, rather than the operand the
+        // composition actually used.
+        StubConstant baseLine = Geometric(BigRational.FromInteger(3), Ratio(1, 2), Ratio(1, 16), 12);
+        StubConstant divisorLine = Geometric(BigRational.FromInteger(2), Ratio(1, 2), Ratio(1, 16), 12);
+
+        using var refiner = new RatioRefiner(baseLine, 2, divisorLine);
+
+        Assert.Equal(baseLine.StepAt(refiner.BaseStep), refiner.Current.PowerBase);
+
+        refiner.RefineTo(Ratio(1, 1_000_000));
+
+        // It tracks rather than freezing at construction: the fixture only says anything if the
+        // refiner actually moved the base, so that is asserted rather than assumed.
+        Assert.True(refiner.BaseStep > 0, "This fixture wants the base advanced, or it tests nothing.");
+        Assert.Equal(baseLine.StepAt(refiner.BaseStep), refiner.Current.PowerBase);
+        Assert.NotEqual(baseLine.StepAt(0), refiner.Current.PowerBase);
+    }
+
     // ---------- refine first, do not catch ----------
 
     [Fact]

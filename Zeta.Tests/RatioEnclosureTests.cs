@@ -64,6 +64,41 @@ public sealed class RatioEnclosureTests
         Assert.Equal(BigRational.FromInteger(28), cube.MaxError);
     }
 
+    [Fact]
+    public void Of_RetainsTheBaseItWasHandedRatherThanOnlyThePower()
+    {
+        // Exponent 3 rather than 1, deliberately: at exponent 1 the power *is* the base, so a
+        // fixture set run at 1 could not tell a retained base from a mislabelled power.
+        foreach ((Approximation powerBase, Approximation divisor) in PropagationFixtures())
+        {
+            RatioEnclosure enclosure = RatioEnclosure.Of(powerBase, 3, divisor);
+
+            Assert.Equal(powerBase, enclosure.PowerBase);
+            Assert.Equal(powerBase.Value, enclosure.PowerBase.Value);
+            Assert.Equal(powerBase.MaxError, enclosure.PowerBase.MaxError);
+        }
+    }
+
+    [Fact]
+    public void Of_TheBaseIsNotRecoverableFromThePower_WhichIsWhyItIsKept()
+    {
+        // The reason the property exists, as a measured fact rather than a remark. Pow re-centres
+        // on the exact image of the interval, so [2, 4] cubed is 36 +/- 28 - and 36 is not 3^3.
+        // Taking a root of the power's value therefore does not give the base back, and neither
+        // does anything else: the image discards which interval produced it.
+        Approximation powerBase = Approximation.Create(BigRational.FromInteger(3), BigRational.One);
+
+        RatioEnclosure enclosure = RatioEnclosure.Of(powerBase, 3, Approximation.Exact(BigRational.One));
+
+        Assert.Equal(BigRational.FromInteger(36), enclosure.Power.Value);
+        Assert.NotEqual(BigRational.Pow(enclosure.PowerBase.Value, 3), enclosure.Power.Value);
+
+        // And the bounds are different quantities too, so a walk printing one where it means the
+        // other is wrong by a factor rather than by a rounding.
+        Assert.Equal(BigRational.One, enclosure.PowerBase.MaxError);
+        Assert.Equal(BigRational.FromInteger(28), enclosure.Power.MaxError);
+    }
+
     // ---------- the propagated bound ----------
 
     [Fact]

@@ -151,6 +151,7 @@ Namespace `HalHeinrich.Numerics`.
 ```csharp
 public sealed class RatioEnclosure
 {
+    public Approximation PowerBase { get; }      // the base, as handed in
     public Approximation Power { get; }          // base^exponent, via Pow
     public Approximation Divisor { get; }
     public Approximation Ratio { get; }          // Power / Divisor, error coarsened
@@ -225,6 +226,16 @@ case, and they follow `TrendIteration` / `TrendRow` / `TrendMatrix` instead.
   re-centres from the endpoints and yields `[0, 1]`. That is interval
   arithmetic's dependency problem, and a future edit reaching for `*` to build
   a power reintroduces it rather than saving a call.
+
+- **`Power` does not carry the base, and no root recovers it.** `Pow(n)`
+  re-centres on the exact image of the input interval, so it discards which
+  interval produced that image — `Power.Value` is generally not the base's
+  value raised to *n*. `PowerBase` is retained for that reason: a consumer
+  wanting π beside π^n otherwise has to re-run the provider to the step the
+  refiner reached, reconstructing from the outside the operand the composition
+  already held. It is the base's own bound and not a share of anything; it
+  answers a different question from `PowerShare`, and the two differ by every
+  factor `Pow` and `Divide` introduce between them.
 
 - **Nothing here multiplies two enclosures at all**, which is why
   multiplication's load-bearing second-order term never enters this member.

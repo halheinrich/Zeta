@@ -42,6 +42,7 @@ public sealed class RatioEnclosure
         "it, and neither is a shape this pipeline is asked for.";
 
     private RatioEnclosure(
+        Approximation powerBase,
         Approximation power,
         Approximation divisor,
         Approximation ratio,
@@ -49,6 +50,7 @@ public sealed class RatioEnclosure
         BigRational powerShare,
         BigRational divisorShare)
     {
+        PowerBase = powerBase;
         Power = power;
         Divisor = divisor;
         Ratio = ratio;
@@ -56,6 +58,26 @@ public sealed class RatioEnclosure
         PowerShare = powerShare;
         DivisorShare = divisorShare;
     }
+
+    /// <summary>Gets the enclosure that was raised to the power - pi, in this bench.</summary>
+    /// <remarks>
+    /// <para>
+    /// Retained because it cannot be recovered from <see cref="Power"/>.
+    /// <see cref="Approximation.Pow"/> re-centres on the exact image of the input interval, so the
+    /// map from base to power is not invertible by taking a root of the value: it discards which
+    /// interval produced that image. Without this property a caller wanting pi beside pi^n has to
+    /// re-run the provider to the step the refiner reached, which is the provider's history
+    /// reconstructed from the outside rather than the operand this composition actually used.
+    /// </para>
+    /// <para>
+    /// It is the base's own bound, not a share of anything. <see cref="PowerShare"/> answers a
+    /// different question - how much of the <i>quotient's</i> error this operand is responsible
+    /// for - and the two differ by every factor <see cref="Approximation.Pow"/> and
+    /// <see cref="Approximation.Divide"/> introduce between them. A walk that prints one where it
+    /// means the other is off by orders of magnitude and looks plausible.
+    /// </para>
+    /// </remarks>
+    public Approximation PowerBase { get; }
 
     /// <summary>Gets the enclosure of <c>base^exponent</c>, as <see cref="Approximation.Pow"/> produced it.</summary>
     /// <remarks>
@@ -147,7 +169,7 @@ public sealed class RatioEnclosure
             : propagated.MaxError * powerWeight / weight;
         BigRational divisorShare = propagated.MaxError - powerShare;
 
-        return new RatioEnclosure(power, divisor, ratio, propagated.MaxError, powerShare, divisorShare);
+        return new RatioEnclosure(powerBase, power, divisor, ratio, propagated.MaxError, powerShare, divisorShare);
     }
 
     /// <summary>Rejects an exponent this composition is not defined for.</summary>
