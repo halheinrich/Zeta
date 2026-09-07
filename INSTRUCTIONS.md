@@ -71,6 +71,28 @@ Four types, one composition. Each layer of the method in
 sweep, iterate, assemble. `RatioIteration` is one column with the bookkeeping
 that `TrendIteration` deliberately does not carry.
 
+`TargetSchedule` is beside them rather than among them: it builds the schedule
+a run is driven to and takes no part in the method.
+
+### The schedule builder validates its arguments, never the schedule
+
+`TargetSchedule.Decades` emits a strictly decreasing run of powers of ten with
+a positive last element **by construction**, so there is nothing in the result
+for it to check — and checking anyway would put the rule `RatioRun` owns in a
+second place. That is a decision, not an omission. § 6e ruled the same question
+one layer up and left `ConstantRun`'s copy of the rule standing rather than
+publish a validator: exposing one publishes a policy while leaving every caller
+free to skip it, and the real single-sourcing is a validated schedule type
+reached through a factory — a two-repo change nobody has planned.
+
+**It is also why there is no overload taking an arbitrary list of exponents.**
+Such an overload cannot be valid by construction, because the caller chooses
+the order, so it would have to reject a list that does not descend — the
+ordering rule written down a second time. A caller wanting exponents no fixed
+step reaches, such as `PositiveControlTests`' doubling `4, 8, 16, 32, 64`,
+writes them out and hands them to `RatioRun.Execute`, which validates them once
+and in the place that owns the rule.
+
 ### The halting rule is the substance
 
 § 2 step 4 halts on the **propagated** ratio error, never on either
@@ -198,6 +220,15 @@ public sealed class RatioRun
     public IReadOnlyList<RatioIteration> Iterations { get; }
     public TrendMatrix Matrix { get; }
 }
+
+public static class TargetSchedule
+{
+    // 10^-first ... 10^-last, taking `step` decades at a time. Valid by
+    // construction; validates its own arguments and not the schedule rule.
+    public static IReadOnlyList<BigRational> Decades(int firstExponent,
+                                                    int lastExponent,
+                                                    int step = 1);
+}
 ```
 
 Contracts a caller is held to:
@@ -273,6 +304,10 @@ case, and they follow `TrendIteration` / `TrendRow` / `TrendMatrix` instead.
   `TrendMatrix` — the table `../SPEC-rational-ratio.md` § 2 step 6 describes,
   formatted for a reader — has no home yet, and the first consumer that needs
   one will decide whether it belongs here or beside the runner.
-- No target-schedule helper. Both future consumers will want "run to error τ
-  in *k* columns", and if they each write it, that is a library gap wearing a
-  disguise rather than two callers being specific.
+- ~~No target-schedule helper.~~ `TargetSchedule.Decades` closed this in step
+  6c, at the second consumer. What is *not* closed is one layer up: the same
+  helper would serve `RationalApproximation`'s `ConstantRun`, and the ordering
+  rule it declines to restate still exists twice — in `RatioRun.FaultInTargets`
+  and in `ConstantRun.FaultInTargets`. § 6e ruled the fix is a validated
+  schedule type through a factory, an unplanned two-repo change, and left the
+  duplication standing. Nothing here may cross that boundary to fix it.
