@@ -311,6 +311,16 @@ case, and they follow `TrendIteration` / `TrendRow` / `TrendMatrix` instead.
   carry; the moment anything here multiplies, it becomes this member's problem
   too.
 
+- **The kind of bound a run proves follows its searcher, and the two must never
+  be described together.** `README.md` § What a result from this bench means
+  states the rule; what matters here is that both searchers are in use in one
+  runner — `walk` drives `HeightSweep`, `target` drives `DenominatorSweep` — so
+  a reporting site cannot assume either. Ask
+  `HeightSweep.SearchesNumerators(enclosure)`, which exists precisely so the
+  answer is not re-derived from `|Value| > 1` at every site. Caught in step 6c
+  by reading the walk's own output: it claimed a denominator bound of 1, and
+  `6/1` is inside the enclosure.
+
 - **A divisor whose enclosure contains zero is refined, never caught.**
   `Approximation.Divide` throws on one even when its `Value` is non-zero,
   because such a divisor has not been computed accurately enough to divide by.
@@ -324,15 +334,21 @@ case, and they follow `TrendIteration` / `TrendRow` / `TrendMatrix` instead.
 
 - **The reference sweep is deliberately slow and unbounded**, so a target
   chosen without regard to what it implies is the way to make a run take
-  forever. Ruling out every rational of denominator below *H* needs error
-  below *H*⁻²; the searcher's depth tracks ε^(−1/2). Neither the series nor
-  the searcher is the bottleneck at the depths this bench actually runs, but
-  the schedule is the caller's and nothing here will refuse an absurd one.
+  forever. Ruling out every rational of **height** below *H* needs error below
+  *H*⁻² — `../SPEC-rational-ratio.md` § 2's law, and it is stated on height
+  rather than on denominator, which this bullet had wrong until step 6c. The
+  searcher's depth tracks ε^(−1/2) for a generic target; a target pinned just
+  outside a low-height rational *p*/*q*₀ costs about 1/(2*q*₀ε) instead, and
+  at ε = 1e−18 the two differ by some 2.4×10⁸. Which regime a real target is
+  in cannot be known in advance, because it is the question being asked, so a
+  budget is a **measured depth plus a hard cap** and never a computed bound.
+  `Zeta.Experiments` carries one and `Zeta.Tests/TargetRunGuardTests` holds it
+  to the measurement.
 
 - **A control belongs in `Zeta.Tests`; a target with no known answer does
-  not.** `../AGENTS.md` § Exactness discipline draws that line, and this
-  repository will grow a runnable project for the second kind. A long run that
-  prints a table has no pass or fail and must not masquerade as a test.
+  not.** `../AGENTS.md` § Exactness discipline draws that line, and
+  `Zeta.Experiments` is where the second kind lives. A long run that prints a
+  table has no pass or fail and must not masquerade as a test.
 
 ## Subproject-internal next steps
 

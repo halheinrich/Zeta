@@ -28,6 +28,51 @@ candidate keeps improving poses a conjecture and nothing stronger.
 That limitation is not a caveat added at the end. It is why the pipeline has
 no `IsConverged`, no `Answer`, and no stopping rule — see below.
 
+**The kind of bound follows the searcher, and the two must never be described
+together.** `DenominatorSweep` enumerates denominators and so proves a
+denominator bound. `HeightSweep` above 1 enumerates numerators and so proves a
+height bound. Reporting one while running the other is not a wording slip: on
+a value near 6 the denominator reached is 1, and "every rational of denominator
+at or below 1 is refuted" is flatly false.
+
+## The first run at π³/ζ(3)
+
+Measured on this bench, 2026-09-07: `MachinPi` and `BorweinZetaThree`, twelve
+columns from 1e-2 to 1e-13, searched with `DenominatorSweep`. Wall clock ran
+32–46 s across three runs; every figure below was identical in all of them, the
+arithmetic being exact.
+
+**Every rational of denominator at or below 3,939,832 misses the final
+enclosure, for any numerator.** That is the result. It is a refutation, and it
+is the whole of what was established.
+
+The simplest rational the evidence still permits is `101625432/3939833`, of
+height about 1.0×10⁸. It is not evidence of anything: one column deeper refutes
+it and offers another, which is what every column of the run did to its
+predecessor.
+
+Two things in the run are worth a reader's attention.
+
+- **`2515594/97525` was the simplest candidate at two consecutive columns, and
+  then moved on.** `SPEC-rational-ratio.md` § 2 names that exact value as the
+  reason there is no "unchanged for *k* rounds" stopping rule. It appeared
+  unprompted in the first real run.
+- **`26/1` sits at `|26 − 25.794…|` in every column and never moves**, which is
+  what a refuted candidate looks like: the row settles at its true distance
+  rather than falling.
+
+**A falling row poses a conjecture and is not even a reliable sign of one.** A
+near-miss — a target sitting just outside a simple rational — produces a row
+that falls exactly as a genuine find would, flooring only below any precision
+reachable here. Nothing in the matrix distinguishes the two cases. Read the
+denominator bound, not the row.
+
+Reproduce it with `dotnet run --project Zeta.Experiments -- target`. It runs no
+deeper than a ceiling that is a measured number rather than a computed bound;
+sweep depth is set by the continued-fraction structure of the value being asked
+about, so a computed ceiling would have to trust the extrapolation it exists to
+guard against.
+
 ## The method
 
 1. **Enclose** π^n and ζ(n) — each a value with a proven bound on its own
