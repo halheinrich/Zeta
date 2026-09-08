@@ -5,10 +5,18 @@ namespace HalHeinrich.Numerics.Tests;
 
 /// <summary>
 /// The positive controls of <c>SPEC-rational-ratio.md</c> section 4, driven through the whole
-/// pipeline: <c>pi^2/zeta(2) = 6</c>, <c>pi^4/zeta(4) = 90</c> and <c>pi^6/zeta(6) = 945</c>, with
-/// the error vanishing.
+/// pipeline: <c>pi^2/zeta(2) = 6</c>, <c>pi^4/zeta(4) = 90</c> and <c>pi^6/zeta(6) = 945</c>,
+/// enclosed tightly enough that no rival of low denominator stands beside them.
 /// </summary>
 /// <remarks>
+/// <para>
+/// <b>Three of section 4's eight, and the other five are held rather than forgotten.</b> That row
+/// was widened on 2026-09-08 to the even n = 2...16. Its last three targets carry denominators
+/// 691, 2 and 3617 and are the only ones that can tell a denominator claim from a height claim,
+/// every earlier one being denominator 1. Those five wait on the generalised runner held under
+/// <c>halheinrich/Math#65</c>, which is where they are worth writing: a control earns most written
+/// against the pipeline shape that gets kept.
+/// </para>
 /// <para>
 /// <b>These are not the controls in <c>RealConstants.Tests/EvenZetaControlTests</c>, and neither
 /// makes the other redundant.</b> That one pins the <i>premise</i> at two fixed depths - one
@@ -129,9 +137,17 @@ public sealed class PositiveControlTests
     [InlineData(6, 945)]
     public void TheEnclosureClosesAroundTheAnswer_WhichIsWhatFindingItIsWorth(int order, int answer)
     {
-        // "Errors vanishing" - the half of section 4's row that a stuck pipeline fails. The row's
-        // cells are the exact |answer - x_k|, and they fall by sixty orders of magnitude while
-        // staying inside an enclosure that falls with them.
+        // Section 4 asks that the survivor set under a bound fixed in advance be *exactly* the
+        // target, and "exactly" is two claims. That the target is in the set is the previous
+        // test's, and a stuck pipeline gets it for nothing. That nothing else is in the set is
+        // this one's, and it is the half a stuck pipeline fails: the set is a singleton only once
+        // the enclosure is narrow enough to exclude every rival of denominator at or below the
+        // bound, which section 2 sizes at eps < 1/(2Q) for exactly the rational-target case these
+        // controls live in. An enclosure that stops narrowing leaves rivals standing however long
+        // the run goes on. So what is asserted here is that narrowing: the row's cells are the
+        // exact |answer - x_k|, and they fall by sixty orders of magnitude while staying inside an
+        // enclosure that falls with them. Asserting the survivor set itself waits on the pipeline
+        // held under halheinrich/Math#65, as it does in NegativeControlTests.
         RatioRun run = Control(order);
         TrendRow row = Assert.Single(run.Matrix.Rows);
 

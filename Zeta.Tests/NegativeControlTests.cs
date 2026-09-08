@@ -130,7 +130,7 @@ public sealed class NegativeControlTests
     }
 
     [Fact]
-    public void EveryRowPlateausExceptTheOneTheFinalEnclosureStillAdmits()
+    public void EveryEarlierCandidateIsExcluded_LeavingOnlyTheOneFoundInTheLastColumn()
     {
         // The matrix-shaped restatement of the criterion, which section 4 admits only with the
         // FirstSeenAt clause below. Section 2 step 6 read off the matrix until the 2026-09-08
