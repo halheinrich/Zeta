@@ -108,8 +108,9 @@ internal static class TargetRun
 
         notes.WriteLine();
         notes.WriteLine("the trend matrix - rows are candidates, columns iterations, cells the exact");
-        notes.WriteLine("distance |a/b - x_k|. A row falling towards zero is the candidate the");
-        notes.WriteLine("evidence favours; every other row settles at its true distance.");
+        notes.WriteLine("distance |a/b - x_k|. It shows what the search is doing; it does not decide.");
+        notes.WriteLine("What decides is membership: a candidate outside any one enclosure is not the");
+        notes.WriteLine("ratio, permanently. Read the bound printed below the table, not the rows.");
         notes.WriteLine();
 
         MatrixReport.WriteDistances(data, run.Matrix);
@@ -207,7 +208,8 @@ internal static class TargetRun
         notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  Every rational of denominator at or below {value.Denominator - 1} misses the final"));
-        notes.WriteLine("  enclosure, for any numerator. That is the result, and it is a refutation.");
+        notes.WriteLine("  enclosure, for any numerator - the axis is denominators because this run");
+        notes.WriteLine("  searched with DenominatorSweep. That is the result, and it is a refutation.");
         notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  {value.Numerator}/{value.Denominator} survives, at height {last.Simplest.Height}. It is the simplest rational"));
@@ -216,11 +218,12 @@ internal static class TargetRun
         notes.WriteLine();
         notes.WriteLine("WHAT IT DOES NOT");
         notes.WriteLine();
-        notes.WriteLine("  Nothing finite can show that a real number IS rational. A row falling");
-        notes.WriteLine("  towards zero poses a conjecture and nothing stronger - and it is not even a");
-        notes.WriteLine("  reliable sign of one: a near-miss, a target sitting just outside a simple");
-        notes.WriteLine("  rational, produces a row that falls exactly as a genuine find would and");
-        notes.WriteLine("  floors only below any precision this bench can reach. Nothing in the matrix");
-        notes.WriteLine("  above distinguishes the two cases. Read the denominator bound, not the row.");
+        notes.WriteLine("  Nothing finite can show that a real number IS rational. A candidate that");
+        notes.WriteLine("  survives every enclosure poses a conjecture and nothing stronger - and a");
+        notes.WriteLine("  row falling towards zero is not even a reliable sign of one: a near-miss, a");
+        notes.WriteLine("  target sitting just outside a simple rational, produces a row that falls");
+        notes.WriteLine("  exactly as a genuine find would and floors only below any precision this");
+        notes.WriteLine("  bench can reach. Nothing in the matrix above distinguishes the two cases.");
+        notes.WriteLine("  Read the denominator bound, not the row.");
     }
 }

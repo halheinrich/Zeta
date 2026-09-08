@@ -4,8 +4,8 @@ using System.Numerics;
 namespace HalHeinrich.Numerics.Experiments;
 
 /// <summary>
-/// Renders a <see cref="TrendMatrix"/>: the table <c>../SPEC-rational-ratio.md</c> § 2 step 6
-/// describes, and the admitted-or-excluded view of the same matrix that a ladder of rival
+/// Renders a <see cref="TrendMatrix"/>: the table <c>../SPEC-rational-ratio.md</c> § 2 keeps as
+/// presentation, and the admitted-or-excluded view of the same matrix that a ladder of rival
 /// candidates is read from.
 /// </summary>
 /// <remarks>
@@ -19,12 +19,21 @@ namespace HalHeinrich.Numerics.Experiments;
 /// </para>
 /// <para>
 /// <b>Neither table is an instrument for detecting progress, and the presentation must not imply
-/// it is.</b> § 2 step 6 says a row falling to zero is the answer, which is true in the limit and
-/// dangerous read operationally: step 6d measured a near-miss row falling exactly as a genuine
-/// find would, flooring only below any reachable precision, and nothing in the matrix
-/// distinguishes the two. "One row survives" is satisfied by a run that refuted nothing. So what
-/// is printed beneath these tables is § 1's denominator bound and the statement that a vanishing
-/// row poses a conjecture - never a verdict.
+/// it is.</b> § 2 was amended on 2026-09-08 to keep the matrix as presentation and stop letting it
+/// decide; these renderers are on the presentation side of that line. Reading a row falling
+/// towards zero as the answer is true in the limit and dangerous read operationally: step 6d
+/// measured a near-miss row falling exactly as a genuine find would, flooring only below any
+/// reachable precision, and nothing in the matrix distinguishes the two.
+/// </para>
+/// <para>
+/// <b>"One row survives" is not the survivor set, and the resemblance is the trap.</b> A row left
+/// standing is a claim about this matrix's own candidates - whichever ones some column's search
+/// happened to surface - so a run that refuted nothing still leaves exactly one, and by § 4 a
+/// pipeline that has stopped narrowing leaves one trivially, every column being identical. A
+/// survivor is a claim about <i>every</i> rational under a denominator bound fixed in advance,
+/// decided by enclosure membership rather than by a trend. Counting rows here settles nothing
+/// about that set. So what is printed beneath these tables is § 1's bound and what survives it,
+/// with the searcher whose axis it is named alongside - never a verdict read off a row.
 /// </para>
 /// </remarks>
 internal static class MatrixReport
@@ -38,7 +47,7 @@ internal static class MatrixReport
     /// </remarks>
     private static readonly BigInteger DigitsLimit = BigInteger.Pow(10, 9);
 
-    /// <summary>Writes § 2 step 6's table: rows are candidates, columns iterations, cells the distance.</summary>
+    /// <summary>Writes the trend matrix: rows are candidates, columns iterations, cells the distance.</summary>
     /// <param name="data">Where the table goes.</param>
     /// <param name="matrix">The matrix.</param>
     public static void WriteDistances(TextWriter data, TrendMatrix matrix)

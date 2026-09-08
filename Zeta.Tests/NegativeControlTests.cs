@@ -4,7 +4,8 @@ namespace HalHeinrich.Numerics.Tests;
 
 /// <summary>
 /// The negative control of <c>SPEC-rational-ratio.md</c> section 4: <c>sqrt(2)/sqrt(3)</c>, two
-/// independently enclosed irrationals, where every row of the trend matrix must plateau.
+/// independently enclosed irrationals, where each iteration's enclosure must exclude the previous
+/// iteration's simplest candidate.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -19,6 +20,20 @@ namespace HalHeinrich.Numerics.Tests;
 /// stopped narrowing, or narrowed around the wrong value, would keep returning the same simplest
 /// candidate, and the next enclosure would contain it. It equally cannot be satisfied by a run
 /// that had found a rational answer: that answer would be found early and stay found.
+/// </para>
+/// <para>
+/// <b>Nothing here asserts on the survivor set yet, and that is a gap rather than a ruling.</b>
+/// Section 2's 2026-09-08 amendment makes the survivor set the criterion, so the sharpest form
+/// this control could take is the direct one: under a denominator bound <c>Q</c>, the survivors of
+/// these enclosures are <i>none</i>, the ratio being irrational. That is strictly stronger than
+/// the exclusion property above, which only ever looks at one candidate per iteration. It is not
+/// written because it cannot be written honestly yet - nothing in <c>Zeta</c> reaches
+/// <c>SurvivorSearch</c>, and the pipeline that would is the reshape held under
+/// <c>halheinrich/Math#65</c>. Choosing <c>Q</c> is also a measurement rather than a guess: this
+/// is already the expensive control, realising about 1.8e-12 and sweeping to denominator 576180,
+/// and section 2's sizing makes an emptiness claim at a <c>Q</c> worth asserting a cost that has
+/// to be measured before it is committed to. Add it with that pipeline, against the shape that
+/// gets kept.
 /// </para>
 /// <para>
 /// <b>The shared engine is not a violation of section 4's independence ruling, and should not be
@@ -117,8 +132,11 @@ public sealed class NegativeControlTests
     [Fact]
     public void EveryRowPlateausExceptTheOneTheFinalEnclosureStillAdmits()
     {
-        // Section 2 step 6 read off the matrix rather than off the iterations. A row's last cell
-        // is |candidate - x_last|, so the row is refuted exactly when that exceeds the final
+        // The matrix-shaped restatement of the criterion, which section 4 admits only with the
+        // FirstSeenAt clause below. Section 2 step 6 read off the matrix until the 2026-09-08
+        // amendment made membership the criterion; what this test now does is check that the
+        // matrix agrees with membership, not read a trend off it. A row's last cell is
+        // |candidate - x_last|, so the row is refuted exactly when that exceeds the final
         // enclosure's error - and after a run that has refuted everything it entertained, exactly
         // one candidate is left standing, namely the last column's own.
         RatioRun run = SharedRun.Value;
@@ -133,9 +151,11 @@ public sealed class NegativeControlTests
         // Measured: it passed under that mutation until this line was added.
         Assert.Equal(run.Iterations.Count - 1, standing.FirstSeenAt);
 
-        // And no row has fallen anywhere near zero. Every one of them - the standing one included
-        // - is a rational at a fixed distance from an irrational, so the distances settle rather
-        // than vanish; what a row cannot do is keep falling.
+        // And no candidate sits exactly on the ratio. Every one of them - the standing one
+        // included - is a rational at a fixed nonzero distance from an irrational, so a zero cell
+        // could only mean the pipeline had lost the true value out of its enclosures or surfaced a
+        // candidate no search produced. That is a claim about each cell on its own; it says
+        // nothing about where a row is heading, which is not what decides anything here.
         Assert.True(
             run.Matrix.Rows.All(row => row.Distances.All(distance => distance.Sign > 0)),
             "No candidate may sit at distance zero from the ratio.");
