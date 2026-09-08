@@ -14,34 +14,28 @@ namespace HalHeinrich.Numerics;
 /// enclosure, no search and no constant of its own.
 /// </para>
 /// <para>
-/// <b>The run does not stop early, and there is no property here that says it should.</b> A
-/// candidate holding steady across iterations is not evidence: measured runs have shown one hold
-/// for two consecutive iterations and then move on, twice, so any "unchanged for k rounds" rule
-/// with k = 2 gives a false positive on cases that have actually been observed. The run is driven
-/// to the fixed sequence of targets it was given and the whole matrix is read afterwards.
+/// <b>The run does not stop early, and there is no property here that says it should.</b> It is
+/// driven to the fixed sequence of targets it was given, and the whole matrix is read afterwards.
+/// Why a candidate holding steady is not evidence - including the measured runs that defeat an
+/// "unchanged for k rounds" rule - is argued once, on <see cref="TrendMatrix"/> and in
+/// <c>SPEC-rational-ratio.md</c> § 2, "Why survivors rather than a trend".
 /// </para>
 /// <para>
-/// <b>What the answer means, and what decides it.</b> A row of the matrix falling towards zero
-/// would mean the candidate is the constant only in the limit, and no finite run reaches a limit;
-/// at any iteration a row falling towards a very small number is indistinguishable from one
-/// falling to zero. So the rows are not what decides. <see cref="SurvivorSearch"/> is: run over
-/// this run's enclosures - the <see cref="RatioEnclosure.Ratio"/> of
-/// <see cref="RatioIteration.Enclosure"/> from each of <see cref="Iterations"/> - under a
-/// denominator bound fixed in advance, it reports the rationals no enclosure excludes. A candidate
-/// outside any one enclosure is not the constant, permanently, so that set only shrinks and an
-/// empty tail to it is the refutation. The matrix is kept for what it is good at: showing a reader
-/// what the search is doing, and showing a near-miss <i>as</i> a near-miss.
+/// <b>What the answer means, and what decides it.</b> Not the rows of <see cref="Matrix"/>:
+/// <see cref="SurvivorSearch"/> decides. Why refutation is a proof where a falling row is an
+/// inference finite precision cannot support is argued once, on <see cref="SurvivorSearch"/> and
+/// <see cref="TrendMatrix"/> and in that same section. What is local to this type is the
+/// projection: that search takes enclosures of the unknown, and this run's are the
+/// <see cref="RatioEnclosure.Ratio"/> of <see cref="RatioIteration.Enclosure"/> from each of
+/// <see cref="Iterations"/>, searched under a denominator bound fixed in advance.
 /// </para>
 /// <para>
-/// <b>A bound reported from a run must name the searcher that produced it</b>, because the axis
-/// follows the searcher and the two are not interchangeable.
-/// <see cref="Execute"/> takes the searcher as an argument and defaults it to
-/// <see cref="DenominatorSweep"/>, which enumerates denominators and so bounds them - for any
-/// numerator, which is the stronger claim. <see cref="HeightSweep"/> above one enumerates
-/// numerators instead and so bounds <i>height</i>, saying nothing about denominators;
-/// <see cref="HeightSweep.SearchesNumerators"/> is what tells a reporting site which it got. This
-/// paragraph read "the sweep" when there was one searcher. With two, a bound that does not name
-/// its searcher is not checkable - see <c>SPEC-rational-ratio.md</c> § 1.
+/// <b>A bound reported from a run must name the searcher that produced it.</b> The axis follows
+/// the searcher, and which searcher bounds which axis - so why a bound that does not name one is
+/// not checkable - is stated once in <c>SPEC-rational-ratio.md</c> § 1 and on
+/// <see cref="HeightSweep"/>. What this type adds is that <see cref="Execute"/> takes the searcher
+/// as an argument and defaults it to <see cref="DenominatorSweep"/>, so a reporting site that did
+/// not choose one has a denominator bound to report.
 /// </para>
 /// </remarks>
 public sealed class RatioRun

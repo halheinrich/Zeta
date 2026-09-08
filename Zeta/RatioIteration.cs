@@ -76,10 +76,9 @@ public sealed class RatioIteration
     /// </summary>
     /// <exception cref="InvalidOperationException">The search yielded no candidates at all.</exception>
     /// <remarks>
-    /// This is the least-denominator rational the evidence permits unconditionally, and the
-    /// least-height one whenever the enclosure's <see cref="Approximation.MaxError"/> is below
-    /// <c>1/2</c> - a condition this bench's enclosures are nowhere near violating, but one worth
-    /// stating rather than relying on silently.
+    /// Which rational that is - least denominator, or least height, and under what condition on
+    /// the enclosure's <see cref="Approximation.MaxError"/> - is a property of the searcher rather
+    /// than of this type, and is stated once on <see cref="ConstantIteration.Simplest"/>.
     /// </remarks>
     public RationalCandidate Simplest =>
         Candidates.Count > 0 ? Candidates[^1] : throw new InvalidOperationException(NoCandidatesMessage);
