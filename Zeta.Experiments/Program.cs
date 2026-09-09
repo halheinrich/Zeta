@@ -148,10 +148,11 @@ internal static class Program
         notes.WriteLine("  see those. It runs, then refuses to pay for the enumeration if that comes");
         notes.WriteLine("  out past its budget. The opening step is about h*Q^2 for a first target h,");
         notes.WriteLine("  so a decade off the last end costs ten times as much, while a decade off");
-        notes.WriteLine("  the first end saves whatever the providers' next step lands on - a factor");
-        notes.WriteLine("  of eight to the decade on average here, and lumpy, since h is realised");
-        notes.WriteLine("  rather than requested. Deeper runs are bought by starting later, at the");
-        notes.WriteLine("  cost of a shorter collapse chart.");
+        notes.WriteLine("  the first end saves less and by no fixed factor - about eight to the");
+        notes.WriteLine("  decade here, and lumpy. RatioEnclosure.Of coarsens, so every realised");
+        notes.WriteLine("  half-width is a power of two by construction, and which one a schedule");
+        notes.WriteLine("  lands on is set by the first provider step to meet the target. Deeper");
+        notes.WriteLine("  runs are bought by starting later, at the cost of a shorter chart.");
         notes.WriteLine();
         notes.WriteLine("worth running");
         notes.WriteLine();

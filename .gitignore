@@ -20,6 +20,18 @@ TestResults/
 # an untracked file for anyone reproducing the steps locally.
 test-output.txt
 
+# The survivors exhibit writes its SVG to stdout and every documented
+# invocation redirects it - `survivors > survivors.svg` in README.md and in
+# Program.cs's own usage - so running the exhibit as instructed, from the
+# checkout root, dirties the tree. That is a defect of the instructions rather
+# than of anyone's conduct, and this is the fix.
+#
+# Anchored and prefixed on purpose, not a blanket *.svg: an exhibit SVG
+# committed deliberately - under docs/, or at any other path - stays tracked,
+# and only the output the documented redirect produces at the root is ignored.
+# Use `git add -f` if one of these ever is meant to be kept.
+/survivors*.svg
+
 # NuGet packages
 *.nupkg
 *.snupkg

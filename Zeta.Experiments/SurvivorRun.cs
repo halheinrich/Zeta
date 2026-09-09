@@ -40,14 +40,17 @@ namespace HalHeinrich.Numerics.Experiments;
 /// <para>
 /// <b>Starting the schedule later is the cheaper knob, and the one worth reaching for first.</b>
 /// The estimate is <c>h*Q^2</c>, so a decade off the last end multiplies <c>Q^2</c> by ten while a
-/// decade off the first end divides <c>h</c> by whatever the providers' steps happen to land on.
-/// That is not a decade and not even a constant: <c>h</c> is realised rather than requested, and
-/// these providers halve, so it comes out a power of two. Measured here at order 3, first ends of
-/// 2, 3, 4 and 5 realise <c>2^-8</c>, <c>2^-10</c>, <c>2^-15</c> and <c>2^-17</c> - a factor of
-/// four, then thirty-two, then four again, averaging about eight to the decade. So a caller who
-/// wants another decade of depth inside the same budget buys it by starting later, at the cost of
-/// a shorter collapse chart, and finds out what it bought by being told. That trade is the
-/// caller's to make, which is the whole reason both ends are arguments rather than only the last.
+/// decade off the first end divides <c>h</c> by less than that, and by no fixed factor. The reason
+/// is <see cref="RatioEnclosure.Of"/>, which coarsens: every realised half-width is the least
+/// power of two at or above the propagated bound, so <c>h</c> lives on a power-of-two grid <i>by
+/// construction</i> rather than by anything the providers do. Which point of that grid a schedule
+/// lands on is then set by the first provider step to meet the target, and the two interact.
+/// Measured here at order 3, first ends of 2, 3, 4 and 5 realise <c>2^-8</c>, <c>2^-10</c>,
+/// <c>2^-15</c> and <c>2^-17</c> - four, then thirty-two, then four again, about eight to the
+/// decade on average. Deterministic and explainable, in other words, and not a quirk: a caller
+/// wanting another decade of depth inside the same budget buys it by starting later, at the cost
+/// of a shorter collapse chart. That trade is the caller's to make, which is the whole reason both
+/// ends are arguments rather than only the last.
 /// </para>
 /// <para>
 /// <b>No pass, no fail.</b> § Exactness discipline: a target with an unknown answer belongs in a

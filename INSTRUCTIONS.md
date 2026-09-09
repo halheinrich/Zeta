@@ -124,11 +124,23 @@ budget before spending it.
 The span moved to the caller once a scratchpad probe had shown it, rather than
 the providers or the search, to be what confined the exhibit — `halheinrich/Math#64`
 leg 3. The estimate is `h*Q²`, so a decade off the last end multiplies `Q²` by
-ten while a decade off the first end divides `h` by whatever the providers' steps
-land on — not a decade and not a constant, since `h` is *realised* rather than
-requested and these providers halve. Measured here in Release at order 3, first
-ends of 2, 3, 4 and 5 realise `h` of `2⁻⁸`, `2⁻¹⁰`, `2⁻¹⁵` and `2⁻¹⁷`: four,
-then thirty-two, then four again, about eight to the decade on average.
+ten while a decade off the first end divides `h` by less, and by no fixed factor.
+Measured here in Release at order 3, first ends of 2, 3, 4 and 5 realise `h` of
+`2⁻⁸`, `2⁻¹⁰`, `2⁻¹⁵` and `2⁻¹⁷`: four, then thirty-two, then four again, about
+eight to the decade on average.
+
+**Those powers of two come from `RatioEnclosure.Of`, not from the providers.**
+It calls `Coarsen()` on the propagated bound, which returns the least power of
+two at or above it — so every realised half-width is a power of two *by
+construction*. `RatioEnclosureTests` pins that in
+`Of_CoarsensTheRatioErrorUpToTheNextPowerOfTwo`.
+What varies is only which point of that grid a schedule lands on, and
+that is set by the first provider step to meet the target. The lumpiness is
+therefore the interaction of two known things — step sizes against a power-of-two
+grid — and is deterministic and explainable rather than something to be observed.
+Said explicitly because the shorter reading, that "the providers halve", sends
+the next reader to `MachinPi` and `EulerMaclaurinZeta`, where the mechanism is
+not.
 
 The frontier that follows, all measured on this bench in Release at order 3:
 
