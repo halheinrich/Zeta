@@ -455,6 +455,19 @@ public sealed class SurvivorReportTests
     private static readonly WalkPrice DenominatorMicrosecond =
         new(new BigRational(1, 1_000_000), BigRational.Zero, 0, 0);
 
+    /// <summary>One enclosure of half-width 1e-2, the default schedule's first realised target.</summary>
+    private static readonly Approximation[] Wide =
+        [Approximation.Create(BigRational.FromInteger(6), new BigRational(1, 100))];
+
+    /// <summary>A run priced past the budget, so a test can read what the refusal says about it.</summary>
+    private static SurvivorRefusal Refused(BigInteger bound, WalkPrice? price = null)
+    {
+        SurvivorRefusal? refusal = SurvivorRun.Refuse(Wide, bound, price ?? CandidateMicrosecond);
+
+        Assert.NotNull(refusal);
+        return refusal.Value;
+    }
+
     [Fact]
     public void Refuse_PassesARunItCanAffordAndStopsOneItCannot()
     {
@@ -519,14 +532,45 @@ public sealed class SurvivorReportTests
     }
 
     [Fact]
-    public void Refuse_SaysToShortenTheScheduleRatherThanLowerTheBound()
+    public void Refuse_NamesTheFirstExponentAsTheCostKnobAndTheLastAsTheClaimKnob()
     {
-        // The bound is derived on purpose. A refusal that invited lowering it would invite exactly
-        // the hand-picked cap that made the exploration's second graph misleading.
-        string? refusal = SurvivorRun.Refuse(
-            [At(BigRational.FromInteger(6), 1, 100)], BigInteger.Pow(10, 9), CandidateMicrosecond);
+        // Ruling 3 on halheinrich/Math#64, and the defect it corrects. The shipped message said
+        // "one more decade of schedule is ten times this figure" - true of the last exponent,
+        // false of the first, and silent about which it meant - two lines above calling Q derived
+        // on purpose. A caller reading it shortens the end that guts the result.
+        //
+        // Asserted on the values rather than on the sentence, which is why they are values: swap
+        // the two and the advice reverses while every wording assertion still passes.
+        SurvivorRefusal refusal = Refused(BigInteger.Pow(10, 9));
 
-        Assert.Contains("Shorten the schedule", refusal, StringComparison.Ordinal);
+        Assert.Equal(ScheduleEnd.First, refusal.CostKnob);
+        Assert.Equal(ScheduleEnd.Last, refusal.ClaimKnob);
+    }
+
+    [Fact]
+    public void Refuse_TellsTheCallerToRaiseTheFirstEndRatherThanShortenTheLast()
+    {
+        // The rendering of the two knobs above. A caller who wants depth wants the first end
+        // raised: it leaves Q exactly where it is, and the live instance behind the ruling saw
+        // one decade there cut a refused run 43-fold.
+        string message = Refused(BigInteger.Pow(10, 9)).Message;
+
+        Assert.Contains("Raise the FIRST exponent", message, StringComparison.Ordinal);
+        Assert.Contains("leaves Q exactly where it is", message, StringComparison.Ordinal);
+        Assert.Contains("Lowering the LAST exponent", message, StringComparison.Ordinal);
+        Assert.Contains("the bound this run exists to claim", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Refuse_StillRefusesAHandPickedBound()
+    {
+        // The one piece of the old advice that was right and stays. A refusal that invited
+        // lowering Q would invite exactly the hand-picked cap that made the exploration's second
+        // graph misleading.
+        Assert.Contains(
+            "Do not reach for a hand-picked Q",
+            Refused(BigInteger.Pow(10, 9)).Message,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -534,13 +578,28 @@ public sealed class SurvivorReportTests
     {
         // A refusal reporting a count alone would read identically at every order, which is
         // exactly the transfer ruling 2 found does not hold.
-        string? refusal = SurvivorRun.Refuse(
-            [At(BigRational.FromInteger(6), 1, 100)],
+        SurvivorRefusal refusal = Refused(
             BigInteger.Pow(10, 9),
             CandidateMicrosecond with { PerCandidate = CandidateMicrosecond.PerCandidate * 7 });
 
-        Assert.Contains("7.0 a candidate", refusal, StringComparison.Ordinal);
-        Assert.Contains("budget of " + SurvivorRun.BudgetSeconds, refusal, StringComparison.Ordinal);
+        Assert.Equal(CandidateMicrosecond.PerCandidate * 7, refusal.Price.PerCandidate);
+        Assert.Contains("7.0 a candidate", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains(
+            "budget of " + SurvivorRun.BudgetSeconds, refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Refuse_CarriesTheWalkItPricedRatherThanOnlyItsVerdict()
+    {
+        // AGENTS.md section Exactness discipline: report the bound, not the verdict. The refusal
+        // is the one place this command prints a figure nobody can recompute afterwards, so it
+        // carries the size, the price and the bound it was reached from.
+        SurvivorRefusal refusal = Refused(BigInteger.Pow(10, 9));
+
+        Assert.Equal(SurvivorRun.Size(Wide, BigInteger.Pow(10, 9)), refusal.Size);
+        Assert.Equal(BigInteger.Pow(10, 9), refusal.DenominatorBound);
+        Assert.Equal(1, refusal.Prefixes);
+        Assert.Equal(refusal.Price.Seconds(refusal.Size), refusal.PredictedSeconds);
     }
 
     [Fact]

@@ -227,7 +227,7 @@ internal static class SurvivorRun
         "stopwatch reading by a candidate count and so cannot produce one.";
 
     /// <summary>Seconds to microseconds, for the one figure this command reports in them.</summary>
-    private static readonly BigRational Million = BigRational.FromInteger(1_000_000);
+    internal static readonly BigRational Million = BigRational.FromInteger(1_000_000);
 
     /// <summary>Runs the survivor report and writes it.</summary>
     /// <param name="arguments">The command's arguments, as <see cref="Interpret"/> reads them.</param>
@@ -257,11 +257,11 @@ internal static class SurvivorRun
         BigInteger bound = SurvivorReport.DerivedBound(enclosures[^1]);
         WalkPrice price = Calibrate(enclosures, bound);
 
-        string? tooDear = Refuse(enclosures, bound, price);
+        SurvivorRefusal? tooDear = Refuse(enclosures, bound, price);
         if (tooDear is not null)
         {
             notes.WriteLine();
-            notes.WriteLine(tooDear);
+            notes.WriteLine(tooDear.Value.Message);
             return 2;
         }
 
@@ -430,11 +430,17 @@ internal static class SurvivorRun
     /// it was handed, and compares the product with <see cref="BudgetSeconds"/> - every step of it
     /// exact rational arithmetic over given values.
     /// </para>
+    /// <para>
+    /// It returns a <see cref="SurvivorRefusal"/> rather than the sentence, so that which end of
+    /// the schedule the advice names is a value a test can read rather than a phrase it has to
+    /// match. That distinction is the point of the change: the defect being fixed here was a
+    /// sentence that was true of one end and false of the other.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Either half of <paramref name="price"/> is negative.</exception>
-    public static string? Refuse(
+    public static SurvivorRefusal? Refuse(
         IReadOnlyList<Approximation> enclosures,
         BigInteger denominatorBound,
         WalkPrice price)
@@ -445,25 +451,15 @@ internal static class SurvivorRun
         }
 
         WalkSize size = Size(enclosures, denominatorBound);
-        BigRational predicted = price.Seconds(size);
 
-        return predicted > BigRational.FromInteger(BudgetSeconds)
-            ? string.Create(CultureInfo.InvariantCulture,
-                $"Refusing this run: it is predicted to spend {Presentation.Roughly(predicted)} " +
-                $"seconds enumerating, past the budget of {BudgetSeconds}.\n" +
-                $"  the bound   Q = {denominatorBound}, derived as floor(eps^(-1/2)) from the final enclosure\n" +
-                $"  the walk    {size.Denominators:N0} denominators and {size.Candidates:N0} candidates: " +
-                $"each of the {enclosures.Count} collapse\n" +
-                $"              points steps through 1..Q afresh, counting the rationals its own prefix\n" +
-                $"              admits - about h*Q^2 + Q apiece for a prefix of half-width h - so one\n" +
-                $"              more decade of schedule is ten times this figure, not twice it\n" +
-                $"  the price   {Presentation.Roughly(price.PerDenominator * Million)} microseconds a " +
-                $"denominator and {Presentation.Roughly(price.PerCandidate * Million)} a candidate,\n" +
-                $"              timed here against these enclosures before the search. It rises with\n" +
-                $"              the ORDER, so a budget counting candidates would not have meant the\n" +
-                $"              same thing here as at order 3\n" +
-                $"Shorten the schedule rather than lowering Q: a hand-picked bound is what made the\n" +
-                $"exploration's second graph misleading, and Q is derived here on purpose.")
+        return price.Seconds(size) > BigRational.FromInteger(BudgetSeconds)
+            ? new SurvivorRefusal(
+                size,
+                price,
+                denominatorBound,
+                enclosures.Count,
+                ScheduleEnd.First,
+                ScheduleEnd.Last)
             : null;
     }
 

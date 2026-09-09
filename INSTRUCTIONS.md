@@ -158,6 +158,23 @@ Starting later buys a refused decade back, and the default is unchanged because
 a deeper one is a separate judgement about what a first-time reader should wait
 for.
 
+**A refusal names which end to move, and holds it as a value.** Ruling 3 on
+`halheinrich/Math#64` came with a live instance: `survivors 10 4 11` was refused,
+the user read "one more decade of schedule is ten times this figure" and had no
+way to tell that it was true of the *last* exponent and false of the *first* —
+two lines above the same message calling `Q` derived on purpose. Lowering the
+last end would have taken `Q` from 1,048,576 to about 330,000 and gutted the
+claim; raising the first end instead kept `Q` at 1,048,576 **exactly** and cut
+the cost 43-fold, the realised widest having moved seven bits on the power-of-two
+grid. `survivors 10 5 11` then returned `93555/1` alone, § 1's value.
+
+So `SurvivorRun.Refuse` returns a `SurvivorRefusal` and not a sentence, and the
+two ends are `ScheduleEnd` fields on it: `CostKnob` is the first exponent and
+`ClaimKnob` the last. Both are constant, and holding them is still worth doing —
+the constant *is* the claim, and it is the one the shipped prose got wrong. A
+test that matched the wording would have passed against a message naming either
+end.
+
 **The budget is a predicted time, not a count of candidates** (ruled on
 `halheinrich/Math#64` leg 3, 2026-09-09). A count does not transfer between
 orders: at one schedule with only the order varying, the price ran 6.0, 11.7 and
