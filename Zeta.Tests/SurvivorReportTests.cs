@@ -362,11 +362,66 @@ public sealed class SurvivorReportTests
         Assert.Contains("positive controls", SurvivorRun.RefuseOrder(SurvivorRun.MaxOrder + 1), StringComparison.Ordinal);
 
     [Fact]
-    public void Estimate_CountsTheCandidatesUnderTheWidestEnclosure()
+    public void Estimate_CountsTheCandidatesOnePrefixAdmits()
     {
         // h*Q^2 + Q with h = 1/100 and Q = 100: a hundred from the interval widths and a hundred
         // from the one endpoint each denominator contributes.
-        Assert.Equal(200, SurvivorRun.Estimate(At(BigRational.FromInteger(6), 1, 100), 100));
+        Assert.Equal(200, SurvivorRun.Estimate([At(BigRational.FromInteger(6), 1, 100)], 100));
+    }
+
+    [Fact]
+    public void Estimate_PricesEveryPrefixAndNotOnlyTheWidest()
+    {
+        // The defect ruled on halheinrich/Math#64: SurvivorReport.Of enumerates each prefix
+        // afresh, so the run pays the sum. Three prefixes of half-width 1/100, 1/200 and 1/400 at
+        // Q = 100 cost 100 + 100, 50 + 100 and 25 + 100 - 475 against the 200 the widest alone
+        // would have been priced at.
+        IReadOnlyList<Approximation> enclosures =
+        [
+            At(BigRational.FromInteger(6), 1, 100),
+            At(BigRational.FromInteger(6), 1, 200),
+            At(BigRational.FromInteger(6), 1, 400),
+        ];
+
+        Assert.Equal(475, SurvivorRun.Estimate(enclosures, 100));
+    }
+
+    [Fact]
+    public void Estimate_PricesEachPrefixAtItsNarrowestEnclosureAndNotItsLast()
+    {
+        // SurvivorSearch seeds its walk from the narrowest enclosure of the prefix it is given, so
+        // that is what a prefix costs. In a run the enclosures only tighten and the narrowest is
+        // the last; a list that widens again - which Distinct permits, since it collapses only
+        // adjacent repeats - must not be priced as though the walk had got wider with it.
+        IReadOnlyList<Approximation> tightens =
+        [
+            At(BigRational.FromInteger(6), 1, 100),
+            At(BigRational.FromInteger(6), 1, 400),
+        ];
+
+        IReadOnlyList<Approximation> widensBack =
+        [
+            At(BigRational.FromInteger(6), 1, 100),
+            At(BigRational.FromInteger(6), 1, 400),
+            At(BigRational.FromInteger(6), 1, 100),
+        ];
+
+        Assert.Equal(325, SurvivorRun.Estimate(tightens, 100));
+        Assert.Equal(325 + 25 + 100, SurvivorRun.Estimate(widensBack, 100));
+    }
+
+    [Fact]
+    public void Estimate_CountsTheFloorAPrefixPaysForAdmittingNothing()
+    {
+        // The omitted term, and the fixture that makes it the whole cost: eight prefixes so narrow
+        // that no denominator admits an integer still walk 1..Q apiece. The old estimate, pricing
+        // the widest alone, called this 1,000 candidates; it is 8,000. At 1e-10 .. 1e-12 the real
+        // schedule sits in exactly this regime.
+        Approximation sliver = At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 9));
+        IReadOnlyList<Approximation> eight = [.. Enumerable.Repeat(sliver, 8)];
+
+        Assert.Equal(1_000, SurvivorRun.Estimate([sliver], 1_000));
+        Assert.Equal(8_000, SurvivorRun.Estimate(eight, 1_000));
     }
 
     [Fact]
@@ -378,16 +433,35 @@ public sealed class SurvivorReportTests
 
         Assert.Equal(
             BigInteger.Pow(10, 22) + bound,
-            SurvivorRun.Estimate(At(BigRational.FromInteger(6), 1, 100), bound));
+            SurvivorRun.Estimate([At(BigRational.FromInteger(6), 1, 100)], bound));
     }
+
+    [Fact]
+    public void Estimate_RefusesNoEnclosuresAtAll() =>
+        Assert.Throws<ArgumentException>(() => SurvivorRun.Estimate([], 100));
 
     [Fact]
     public void Refuse_PassesARunItCanAffordAndStopsOneItCannot()
     {
-        Approximation widest = At(BigRational.FromInteger(6), 1, 100);
+        IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
 
-        Assert.Null(SurvivorRun.Refuse(widest, 100));
-        Assert.NotNull(SurvivorRun.Refuse(widest, BigInteger.Pow(10, 9)));
+        Assert.Null(SurvivorRun.Refuse(enclosures, 100));
+        Assert.NotNull(SurvivorRun.Refuse(enclosures, BigInteger.Pow(10, 9)));
+    }
+
+    [Fact]
+    public void Refuse_StopsARunTheOmittedFloorAloneCannotAfford()
+    {
+        // The case that would pass against the estimate this replaced. Every prefix is far too
+        // narrow to admit anything, so the whole cost is the floor: one prefix is 40,000,000
+        // candidates and inside the budget, and forty of them are 1,600,000,000 and are not. An
+        // estimate reading enclosures[0] alone sees the affordable figure either way.
+        Approximation sliver = At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 20));
+        IReadOnlyList<Approximation> forty = [.. Enumerable.Repeat(sliver, 40)];
+
+        Assert.True(SurvivorRun.Estimate([sliver], 40_000_000) <= SurvivorRun.Budget);
+        Assert.Null(SurvivorRun.Refuse([sliver], 40_000_000));
+        Assert.NotNull(SurvivorRun.Refuse(forty, 40_000_000));
     }
 
     [Fact]
@@ -395,7 +469,8 @@ public sealed class SurvivorReportTests
     {
         // The bound is derived on purpose. A refusal that invited lowering it would invite exactly
         // the hand-picked cap that made the exploration's second graph misleading.
-        string? refusal = SurvivorRun.Refuse(At(BigRational.FromInteger(6), 1, 100), BigInteger.Pow(10, 9));
+        string? refusal = SurvivorRun.Refuse(
+            [At(BigRational.FromInteger(6), 1, 100)], BigInteger.Pow(10, 9));
 
         Assert.Contains("Shorten the schedule", refusal, StringComparison.Ordinal);
     }
@@ -407,18 +482,18 @@ public sealed class SurvivorReportTests
         // caller can now shorten it. What follows is the two sides of the budget priced by hand,
         // at a widest enclosure of half-width 1e-2 - the default schedule's first target.
         //
-        // The shipped last target of 1e-8 derives Q = 1e4, so the opening step is 1e-2 * 1e8 =
-        // 1e6, comfortably inside the budget. Four decades further derives Q = 1e6 and an opening
-        // step of 1e10, four orders past it. Nothing between them is asserted here: what the run
+        // The shipped last target of 1e-8 derives Q = 1e4, so the widest prefix is 1e-2 * 1e8 =
+        // 1e6, comfortably inside the budget. Four decades further derives Q = 1e6 and a widest
+        // prefix of 1e10, four orders past it. Nothing between them is asserted here: what the run
         // actually realises is tighter than what it was asked for, and only a run knows by how
         // much.
-        Approximation widest = At(BigRational.FromInteger(6), 1, 100);
+        IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
 
         BigInteger shipped = SurvivorReport.DerivedBound(At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 8)));
         BigInteger deeper = SurvivorReport.DerivedBound(At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 12)));
 
-        Assert.Null(SurvivorRun.Refuse(widest, shipped));
-        Assert.NotNull(SurvivorRun.Refuse(widest, deeper));
+        Assert.Null(SurvivorRun.Refuse(enclosures, shipped));
+        Assert.NotNull(SurvivorRun.Refuse(enclosures, deeper));
     }
 
     // ---------- the schedule, which is an argument rather than a constant ----------

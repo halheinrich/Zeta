@@ -26,9 +26,10 @@ namespace HalHeinrich.Numerics.Experiments;
 /// </para>
 /// <para>
 /// <b>The schedule is a parameter with a default, and the default is what it is because of a cost
-/// law rather than taste.</b> The expensive step is the collapse chart's first point, which counts
-/// every rational of denominator at or below <c>Q</c> inside the <i>widest</i> enclosure - about
-/// <c>h/eps</c> candidates, where <c>h</c> is the first target and <c>eps</c> the last. So
+/// law rather than taste.</b> Every point of the collapse chart counts the rationals of denominator
+/// at or below <c>Q</c> that its own prefix admits, walking <c>1..Q</c> afresh to do it, and the
+/// widest prefix dominates the sum - about <c>h/eps</c> candidates, where <c>h</c> is the first
+/// target and <c>eps</c> the last. So
 /// deepening the schedule by one decade costs ten times as much, where <c>target</c>'s own
 /// schedule costs roughly double per decade. A knob whose every notch is ten times the last is not
 /// one to turn casually, which is why it was a constant until somebody had measured what the
@@ -39,7 +40,7 @@ namespace HalHeinrich.Numerics.Experiments;
 /// </para>
 /// <para>
 /// <b>Starting the schedule later is the cheaper knob, and the one worth reaching for first.</b>
-/// The estimate is <c>h*Q^2</c>, so a decade off the last end multiplies <c>Q^2</c> by ten while a
+/// The estimate is dominated by <c>h*Q^2</c>, so a decade off the last end multiplies <c>Q^2</c> by ten while a
 /// decade off the first end divides <c>h</c> by less than that, and by no fixed factor. The reason
 /// is <see cref="RatioEnclosure.Of"/>, which coarsens: every realised half-width is the least
 /// power of two at or above the propagated bound, so <c>h</c> lives on a power-of-two grid <i>by
@@ -112,13 +113,13 @@ internal static class SurvivorRun
     /// </remarks>
     public const int TrackedCap = 4;
 
-    /// <summary>The largest opening enumeration this command will pay for.</summary>
+    /// <summary>The largest enumeration this command will pay for, over every prefix together.</summary>
     /// <remarks>
     /// <para>
     /// Measured on this bench rather than derived, exactly as <c>target</c>'s ceiling is: the
     /// per-candidate cost is a greatest-common-divisor and one exact containment test against
-    /// numerators of a few hundred digits, which no formula sizes usefully. At order 2 the opening
-    /// step is about 1.0e6 candidates and the whole command takes a few seconds.
+    /// numerators of a few hundred digits, which no formula sizes usefully. At order 2 the default
+    /// schedule's whole walk is a few million candidates and the command takes a few seconds.
     /// </para>
     /// <para>
     /// The refusal quotes the estimate rather than a rule, because the estimate is computable
@@ -137,6 +138,10 @@ internal static class SurvivorRun
     /// </para>
     /// </remarks>
     public const long Budget = 60_000_000;
+
+    private const string NoEnclosuresMessage =
+        "A run with no enclosures intersects nothing and has no cost to estimate. " +
+        "SurvivorReport.Of refuses the same list for the same reason.";
 
     /// <summary>Runs the survivor report and writes it.</summary>
     /// <param name="arguments">The command's arguments, as <see cref="Interpret"/> reads them.</param>
@@ -164,7 +169,7 @@ internal static class SurvivorRun
         IReadOnlyList<Approximation> enclosures = SurvivorReport.Distinct(SurvivorReport.EnclosuresOf(run));
 
         BigInteger bound = SurvivorReport.DerivedBound(enclosures[^1]);
-        string? tooDear = Refuse(enclosures[0], bound);
+        string? tooDear = Refuse(enclosures, bound);
         if (tooDear is not null)
         {
             notes.WriteLine();
@@ -323,54 +328,98 @@ internal static class SurvivorRun
             : null;
     }
 
-    /// <summary>The reason this run's opening enumeration will not be paid for, or null when it will.</summary>
-    /// <param name="widest">The widest enclosure, which the opening step enumerates.</param>
+    /// <summary>The reason this run's enumeration will not be paid for, or null when it will.</summary>
+    /// <param name="enclosures">Every enclosure the run will intersect, in order.</param>
     /// <param name="denominatorBound">The derived bound.</param>
     /// <returns>The refusal, or null.</returns>
     /// <remarks>
     /// <para>
-    /// The estimate is the count of rationals of denominator at or below <c>Q</c> inside an
-    /// interval of half-width <c>h</c>: about <c>h*Q^2 + Q</c>, since each denominator contributes
-    /// the integers in an interval of width <c>2*h*q</c> and one more for the endpoints. It ignores
-    /// the reduction to lowest terms, which removes a constant fraction, so it overstates by
-    /// something under a factor of two and never understates.
-    /// </para>
-    /// <para>
-    /// A pure function of two values, which is what lets a test exercise the refusal without a
+    /// A pure function of its arguments, which is what lets a test exercise the refusal without a
     /// run behind it.
     /// </para>
     /// </remarks>
-    public static string? Refuse(Approximation widest, BigInteger denominatorBound)
+    /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
+    public static string? Refuse(IReadOnlyList<Approximation> enclosures, BigInteger denominatorBound)
     {
-        BigInteger estimate = Estimate(widest, denominatorBound);
+        BigInteger estimate = Estimate(enclosures, denominatorBound);
 
         return estimate > Budget
             ? string.Create(CultureInfo.InvariantCulture,
-                $"Refusing this run: its opening step would enumerate about {estimate:N0} candidates, " +
+                $"Refusing this run: it would enumerate about {estimate:N0} candidates, " +
                 $"past the budget of {Budget:N0}.\n" +
                 $"  the bound   Q = {denominatorBound}, derived as floor(eps^(-1/2)) from the final enclosure\n" +
-                $"  the cost    the first point of the collapse chart counts every rational of\n" +
-                $"              denominator at or below Q inside the WIDEST enclosure, which is about\n" +
-                $"              h*Q^2 for a half-width h - so one more decade of schedule is ten times\n" +
-                $"              this figure, not twice it\n" +
+                $"  the cost    every one of the {enclosures.Count} collapse points walks the denominators\n" +
+                $"              1..Q afresh, counting the rationals its own prefix admits - about\n" +
+                $"              h*Q^2 + Q apiece for a prefix of half-width h - so one more decade of\n" +
+                $"              schedule is ten times this figure, not twice it\n" +
                 $"Shorten the schedule rather than lowering Q: a hand-picked bound is what made the\n" +
                 $"exploration's second graph misleading, and Q is derived here on purpose.")
             : null;
     }
 
-    /// <summary>About how many candidates the opening enumeration walks.</summary>
-    /// <param name="widest">The widest enclosure.</param>
+    /// <summary>About how many candidates the whole intersection walks.</summary>
+    /// <param name="enclosures">Every enclosure the run will intersect, in order.</param>
     /// <param name="denominatorBound">The derived bound.</param>
     /// <returns>The estimate, truncated to an integer.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
     /// <remarks>
-    /// Exact rational arithmetic truncated at the end, not floating point: <c>Q</c> runs to
-    /// millions and its square past a <see cref="double"/>'s integer range, where a figure quoted
-    /// in a refusal would start being wrong in its leading digits.
+    /// <para>
+    /// <b>Every prefix is priced, not just the first.</b> One prefix costs the rationals of
+    /// denominator at or below <c>Q</c> inside an interval of half-width <c>h</c>: about
+    /// <c>h*Q^2 + Q</c>, since each denominator contributes the integers in an interval of width
+    /// <c>2*h*q</c> and one more for the endpoints. That <c>+ Q</c> is a floor rather than a
+    /// rounding term - <see cref="SurvivorSearch"/> walks <c>1..Q</c> whatever its interval holds,
+    /// so a prefix narrow enough to admit nothing still costs <c>Q</c> - and
+    /// <see cref="SurvivorReport.Of"/> enumerates each prefix afresh, so the run pays the sum and
+    /// not the first term.
+    /// </para>
+    /// <para>
+    /// <b>This was the guard's defect, ruled on <c>halheinrich/Math#64</c> 2026-09-09.</b> The
+    /// estimate priced <c>enclosures[0]</c> alone while the call site held the whole list. At
+    /// <c>1e-6 .. 1e-12</c> the omitted floor exceeds the term that was counted; at
+    /// <c>1e-10 .. 1e-12</c> it is the entire cost, where the shipped figure implied 20.8
+    /// microseconds a candidate and the corrected one implies 6.9. A per-candidate price read off
+    /// an estimate that omits most of the candidates is a measurement of the estimate.
+    /// </para>
+    /// <para>
+    /// Each prefix is priced at its <i>narrowest</i> enclosure, which is the one
+    /// <see cref="SurvivorSearch"/> seeds its walk from. In a run the enclosures only tighten, so
+    /// that is the prefix's last element; the running minimum below is what makes the same
+    /// arithmetic right for a list handed over by a test in any order.
+    /// </para>
+    /// <para>
+    /// It ignores the reduction to lowest terms, which removes a constant fraction, so it
+    /// overstates by something under a factor of two and never understates. Exact rational
+    /// arithmetic truncated at the end, not floating point: <c>Q</c> runs to millions and its
+    /// square past a <see cref="double"/>'s integer range, where a figure quoted in a refusal
+    /// would start being wrong in its leading digits.
+    /// </para>
     /// </remarks>
-    public static BigInteger Estimate(Approximation widest, BigInteger denominatorBound)
+    public static BigInteger Estimate(IReadOnlyList<Approximation> enclosures, BigInteger denominatorBound)
     {
+        ArgumentNullException.ThrowIfNull(enclosures);
+
+        if (enclosures.Count == 0)
+        {
+            throw new ArgumentException(NoEnclosuresMessage, nameof(enclosures));
+        }
+
         BigRational bound = BigRational.FromInteger(denominatorBound);
-        BigRational candidates = (widest.MaxError * bound * bound) + bound;
+        BigRational square = bound * bound;
+        BigRational narrowest = enclosures[0].MaxError;
+        BigRational candidates = BigRational.Zero;
+
+        foreach (Approximation enclosure in enclosures)
+        {
+            if (enclosure.MaxError < narrowest)
+            {
+                narrowest = enclosure.MaxError;
+            }
+
+            candidates += (narrowest * square) + bound;
+        }
 
         return candidates.Numerator / candidates.Denominator;
     }
@@ -465,8 +514,9 @@ internal static class SurvivorRun
             $"  Q = {bound}, derived as floor(eps^(-1/2)) from the final half-width " +
             $"{Presentation.Magnitude(enclosures[^1].MaxError)} - the depth a generic sweep reaches."));
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  the opening step walks about {Estimate(enclosures[0], bound):N0} candidates and is " +
-            $"almost all of the cost."));
+            $"  the walk is about {Estimate(enclosures, bound):N0} candidates over all " +
+            $"{enclosures.Count} prefixes, of which the opening step is " +
+            $"{Estimate([enclosures[0]], bound):N0}."));
         notes.WriteLine();
         notes.WriteLine("intersecting, one enclosure at a time:");
     }

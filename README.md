@@ -167,11 +167,12 @@ After the order it takes **both ends of the schedule or neither**:
 `survivors 3 2 12` runs `1e-2 .. 1e-12`, and the default is `1e-2 .. 1e-8`.
 One exponent alone is refused rather than guessed at, since it could name
 either end and the two readings differ by a decade of cost apiece. How deep is
-worth going is a real question and not a free one: the opening step counts
-every rational under `Q` inside the *widest* enclosure, about `h*Q²`, so a
-decade off the last end costs ten times as much while a decade off the first
-end saves about four. Ask for more than the budget allows and the command
-prices the run instead of starting it.
+worth going is a real question and not a free one: every point of the collapse
+chart walks the denominators `1..Q` afresh, counting the rationals its own
+prefix admits — about `h·Q² + Q` apiece — and the widest prefix usually
+dominates the sum, so a decade off the last end costs ten times as much while a
+decade off the first end saves about four. Ask for more than the budget allows
+and the command prices the run instead of starting it.
 
 ## Building
 

@@ -112,19 +112,31 @@ an identity rather than a measurement, since `DerivedBound` takes
 `Q = floor(ε^(-1/2))` and the `ε` cancels the `Q²`. Making the estimate linear
 in `q` instead of quadratic turns all three red.
 
-**The cost law is not `target`'s.** The expensive step is the collapse chart's
-first point, which counts every rational under `Q` inside the *widest*
-enclosure — about `h/ε` candidates for a first target `h` and a last `ε`. One
-more decade of schedule is ten times the price, where `target`'s is about
-twice. So the schedule was a constant until somebody had measured what the
-constant cost, and `SurvivorRun.Refuse` checks the estimate against a measured
-budget before spending it.
+**The cost law is not `target`'s.** Every point of the collapse chart walks the
+denominators `1..Q` afresh, counting the rationals its own prefix admits, so a
+prefix of half-width `h` costs about `h·Q² + Q` and the run costs the sum over
+all of them. The widest prefix usually dominates it — about `h/ε` candidates for
+a first target `h` and a last `ε` — so one more decade of schedule is ten times
+the price, where `target`'s is about twice. So the schedule was a constant until
+somebody had measured what the constant cost, and `SurvivorRun.Refuse` checks
+the estimate against a measured budget before spending it.
+
+**That `+ Q` is a floor and not a rounding term, and omitting it was the guard's
+defect** (ruled on `halheinrich/Math#64` 2026-09-09). `SurvivorSearch` walks
+every denominator up to `Q` whatever its interval holds, so a prefix too narrow
+to admit anything still costs `Q` — and `SurvivorRun.Estimate` priced
+`enclosures[0]` alone while its call site held the whole list. At `1e-6 .. 1e-12`
+the omitted term exceeds the term that was counted; at `1e-10 .. 1e-12` it is the
+entire cost, where the shipped figure implied 20.8 µs a candidate against a
+corrected 6.9. `Estimate_CountsTheFloorAPrefixPaysForAdmittingNothing` is the
+fixture that separates the two.
 
 **Both ends of the schedule are arguments, and the first end is the cheap one.**
 The span moved to the caller once a scratchpad probe had shown it, rather than
 the providers or the search, to be what confined the exhibit — `halheinrich/Math#64`
-leg 3. The estimate is `h*Q²`, so a decade off the last end multiplies `Q²` by
-ten while a decade off the first end divides `h` by less, and by no fixed factor.
+leg 3. The estimate is dominated by `h·Q²`, so a decade off the last end
+multiplies `Q²` by ten while a decade off the first end divides `h` by less, and
+by no fixed factor.
 Measured here in Release at order 3, first ends of 2, 3, 4 and 5 realise `h` of
 `2⁻⁸`, `2⁻¹⁰`, `2⁻¹⁵` and `2⁻¹⁷`: four, then thirty-two, then four again, about
 eight to the decade on average.
