@@ -88,7 +88,6 @@ internal static class SurvivorRun
     /// <summary>The zeta order when none is given.</summary>
     public const int DefaultOrder = 2;
 
-
     /// <summary>How many candidates the distance chart follows.</summary>
     /// <remarks>
     /// <para>
@@ -270,6 +269,14 @@ internal static class SurvivorRun
         IReadOnlyList<Approximation> enclosures = SurvivorReport.Distinct(SurvivorReport.EnclosuresOf(run));
 
         BigInteger bound = SurvivorReport.DerivedBound(enclosures[^1]);
+        string? unreachable = RefuseUnreachableControl(request.Order, bound);
+        if (unreachable is not null)
+        {
+            notes.WriteLine();
+            notes.WriteLine(unreachable);
+            return 2;
+        }
+
         WalkPrice price = Calibrate(enclosures, bound);
 
         SurvivorRefusal? tooDear = Refuse(enclosures, bound, price);
@@ -381,7 +388,8 @@ internal static class SurvivorRun
     /// <para>
     /// What replaces it is the principle <see cref="RefuseSchedule"/> was already arguing one
     /// method away: a run is refused for what it would cost, once that is known - which is
-    /// <see cref="Refuse"/>'s question - and never for being high.
+    /// <see cref="Refuse"/>'s question - or for a bound it cannot reach, which is
+    /// <see cref="RefuseUnreachableControl"/>'s - and never for being high.
     /// </para>
     /// <para>
     /// A pure function of the argument, so it is held against tests without paying for a run - the
@@ -394,6 +402,94 @@ internal static class SurvivorRun
             ? "The order must be at least 2. At s = 1 the series is the harmonic one and does " +
               "not converge, so there is no zeta(1) to divide by."
             : null;
+
+    /// <summary>The reason this control cannot find its own answer, or null when it can.</summary>
+    /// <param name="order">The requested order.</param>
+    /// <param name="denominatorBound">The bound the run derived.</param>
+    /// <returns>The refusal, or null - always null for an odd order.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>The defect <c>MaxOrder</c> was accidentally hiding.</b> An even order's answer is an
+    /// exact rational of known denominator, so a run whose <c>Q</c> falls below that denominator
+    /// is not searching a candidate set the answer is in - and reports an empty survivor set,
+    /// which the epilogue calls "a refutation, and the strongest result this bench produces". It
+    /// would be a false refutation of a true answer, the one direction
+    /// <c>../SPEC-rational-ratio.md</c> § 2 forbids. Order 18 needs <c>Q >= 43,867</c> and the
+    /// default schedule reaches 11,585, so <c>survivors 18</c> would have printed exactly that,
+    /// with nothing on the page to say anything was wrong.
+    /// </para>
+    /// <para>
+    /// <b>A refusal rather than a footnote, on § Exactness discipline's rule that a result is
+    /// reported with its limitation.</b> A caveat under an empty set would still be an empty set
+    /// on the chart, and the chart is what travels.
+    /// </para>
+    /// <para>
+    /// <b>Silent on an odd order, which is not an oversight.</b> Nobody knows a denominator to
+    /// compare against there - that is the question - so there is no bound this could check and no
+    /// empty set it could call false. An odd run's empty set is a genuine refutation.
+    /// </para>
+    /// <para>
+    /// A pure function of two values, decidable before any search: the denominator comes from
+    /// <see cref="EvenZetaRatio"/> and <c>Q</c> from the enclosures the pipeline has already
+    /// realised. It sits beside <see cref="Refuse"/> in <see cref="Run"/> and goes first, since a
+    /// run that cannot find its answer should not be priced before it is turned down.
+    /// </para>
+    /// </remarks>
+    public static string? RefuseUnreachableControl(int order, BigInteger denominatorBound)
+    {
+        if (!EvenZetaRatio.IsKnown(order))
+        {
+            return null;
+        }
+
+        BigInteger needed = EvenZetaRatio.ReachableFrom(order);
+
+        return denominatorBound < needed
+            ? string.Create(CultureInfo.InvariantCulture,
+                $"Refusing this run: it could not find its own answer.\n" +
+                $"  the answer   pi^{order}/zeta({order}) = {EvenZetaRatio.Format(order)}, exactly, from " +
+                $"section 1's identity\n" +
+                $"  the bound    Q = {denominatorBound}, derived from this schedule's final enclosure\n" +
+                $"  the gap      the answer's denominator is {needed}, so it is not in the candidate\n" +
+                $"               set at all and the survivor set would come back EMPTY - a false\n" +
+                $"               refutation of a true answer, which section 2 forbids in exactly\n" +
+                $"               that direction\n" +
+                $"Raise the LAST exponent to at least {ExponentReaching(order)}: that is the claim knob, and here " +
+                $"the claim\n" +
+                $"is what is short. 'survivors {order} {DefaultFirstExponent} {ExponentReaching(order)}' derives a Q " +
+                $"that reaches {needed}.\n" +
+                $"An odd order is not checked this way and cannot be: nobody knows a denominator to\n" +
+                $"compare against, which is the question this bench exists to ask.")
+            : null;
+    }
+
+    /// <summary>The shallowest last exponent whose target guarantees a bound reaching this order's answer.</summary>
+    /// <param name="order">The order of zeta. Even, and at least two.</param>
+    /// <returns>The exponent, as <c>10^-exponent</c>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="order"/> has no known answer.</exception>
+    /// <remarks>
+    /// <para>
+    /// <c>Q = floor(eps^(-1/2))</c> reaches a denominator <c>d</c> once <c>eps &lt;= 1/d^2</c>, and
+    /// <c>10^-k &lt; 1/d^2</c> exactly when <c>d^2 &lt; 10^k</c> - so the decimal digit count of
+    /// <c>d^2</c> is the exponent, found by counting digits rather than by a logarithm. A
+    /// <see cref="double"/> logarithm would be off by one at a power of ten, which is precisely
+    /// where a caller following this advice would be left one short of the bound it promises.
+    /// </para>
+    /// <para>
+    /// It is a guarantee on the <i>target</i>, and a run realises something tighter, so the
+    /// schedule this names always reaches - usually with a decade to spare. Naming the shallowest
+    /// exponent that certainly works beats naming the one that probably does: the caller acts on
+    /// this and waits for the answer.
+    /// </para>
+    /// </remarks>
+    public static int ExponentReaching(int order)
+    {
+        BigInteger denominator = EvenZetaRatio.ReachableFrom(order);
+        BigInteger square = denominator * denominator;
+
+        return Math.Max(
+            MinExponent, square.ToString(CultureInfo.InvariantCulture).Length);
+    }
 
     /// <summary>The reason this schedule will not be run, or null when it will.</summary>
     /// <param name="firstExponent">The first target's exponent, as <c>10^-firstExponent</c>.</param>

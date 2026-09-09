@@ -184,6 +184,31 @@ n = 12…20, so there is no cliff at 16 for the even orders to "stop having smal
 denominators" at. And it refused *odd* orders for an argument about even ones,
 which applied consistently would forbid order 3.
 
+**What replaces the cap is the reachability check, and it catches a real defect
+the cap was accidentally hiding.** An even order's answer is an exact rational of
+known denominator, so a run whose `Q` falls below it is not searching a candidate
+set the answer is in — and reports an **empty** survivor set, which the epilogue
+calls "a refutation, and the strongest result this bench produces". That is a
+false refutation of a true answer, the one direction § 2 forbids. Order 18 needs
+`Q ≥ 43,867`; the default schedule realises 16,384, so `survivors 18` would have
+printed exactly that with nothing on the page to say anything was wrong. It
+applies to every even order from 12 up whose denominator outruns the schedule's
+reach.
+
+`SurvivorRun.RefuseUnreachableControl` is a pure function of the order and the
+bound, decidable before any search, and sits beside the cost refusal in `Run`
+— first, since a run that cannot find its answer should not be priced before it
+is turned down. It is **silent on an odd order** and that is not a gap: nobody
+knows a denominator to compare against there, which is the question, so an odd
+run's empty set is a genuine refutation. `ExponentReaching` names the shallowest
+last exponent that certainly reaches, from the digit count of `d²` rather than
+from a logarithm that would be off by one at a power of ten — where a caller
+following the advice would land one short of the bound it promises.
+
+Measured 2026-09-09: `survivors 18` refuses in 0.4 s, and `survivors 18 5 11`
+returns `38979295480125/43867` **alone** at `Q = 370,727` in 269 s. § 1's value,
+at an order the cap forbade.
+
 **The Bernoulli recurrence is written out in `EvenZetaRatio` and should not have
 to be.** `EulerMaclaurinZeta` already computes and caches the even-index
 Bernoulli numbers, through a private method taking a caller-supplied cache, so

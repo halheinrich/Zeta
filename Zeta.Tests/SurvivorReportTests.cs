@@ -371,6 +371,86 @@ public sealed class SurvivorReportTests
     public void RefuseOrder_AcceptsTheDefault() =>
         Assert.Null(SurvivorRun.RefuseOrder(SurvivorRun.DefaultOrder));
 
+    // ---------- the control that cannot reach its own answer ----------
+
+    [Theory]
+    [InlineData(12, 691)]
+    [InlineData(16, 3617)]
+    [InlineData(18, 43867)]
+    [InlineData(20, 174611)]
+    public void RefuseUnreachableControl_TurnsOnTheAnswersOwnDenominator(int order, int denominator)
+    {
+        // Decidable without a search, which is the whole point: the denominator is known in
+        // advance from section 1's identity and Q from enclosures the pipeline has already
+        // realised. One below refuses, exactly at it does not.
+        Assert.NotNull(SurvivorRun.RefuseUnreachableControl(order, denominator - 1));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, denominator));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, denominator + 1));
+    }
+
+    [Fact]
+    public void RefuseUnreachableControl_IsTheLiveCaseMaxOrderWasHiding()
+    {
+        // survivors 18 against the default schedule. Q comes out 16,384 and the answer's
+        // denominator is 43,867, so the survivor set would have come back EMPTY - which the
+        // epilogue calls "a refutation, and the strongest result this bench produces". A false
+        // refutation of a true answer, and nothing on the page to say so.
+        string? refusal = SurvivorRun.RefuseUnreachableControl(18, 16_384);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("38979295480125/43867", refusal, StringComparison.Ordinal);
+        Assert.Contains("EMPTY", refusal, StringComparison.Ordinal);
+        Assert.Contains("Raise the LAST exponent", refusal, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(5)]
+    [InlineData(17)]
+    public void RefuseUnreachableControl_SaysNothingAboutAnOddOrder(int order)
+    {
+        // Not an oversight and not a gap. Nobody knows a denominator to compare against at an odd
+        // order - that is the question - so there is no bound this could check, and an odd run's
+        // empty survivor set is a genuine refutation rather than a false one.
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, 1));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, BigInteger.Pow(10, 12)));
+    }
+
+    [Theory]
+    [InlineData(2, 1)]
+    [InlineData(12, 6)]
+    [InlineData(16, 8)]
+    [InlineData(18, 10)]
+    [InlineData(20, 11)]
+    public void ExponentReaching_NamesAScheduleThatCertainlyReaches(int order, int exponent)
+    {
+        // Q = floor(eps^(-1/2)) clears a denominator d once eps <= 1/d^2, so the exponent is the
+        // decimal digit count of d^2. Asserted against the derived bound rather than against the
+        // arithmetic that produced it: what a caller acting on this advice gets must be a Q at or
+        // above the denominator, and a logarithm off by one at a power of ten would leave them
+        // one short of exactly that.
+        Assert.Equal(exponent, SurvivorRun.ExponentReaching(order));
+
+        BigInteger reached = SurvivorReport.DerivedBound(
+            At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, exponent)));
+
+        Assert.True(
+            reached >= EvenZetaRatio.ReachableFrom(order),
+            Inv($"1e-{exponent} derives Q = {reached}, short of {EvenZetaRatio.ReachableFrom(order)}."));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, reached));
+    }
+
+    [Fact]
+    public void ExponentReaching_NamesNoExponentTheReportCannotCarry()
+    {
+        // Order 2's answer has denominator 1, which any bound reaches - but an exponent below
+        // MinExponent is not a schedule this command's report can carry, so the advice is floored
+        // there rather than naming one RefuseSchedule would then turn down.
+        Assert.True(SurvivorRun.ExponentReaching(2) >= SurvivorRun.MinExponent);
+        Assert.Null(SurvivorRun.RefuseSchedule(
+            SurvivorRun.DefaultFirstExponent, SurvivorRun.ExponentReaching(20)));
+    }
+
     [Fact]
     public void Estimate_CountsTheCandidatesOnePrefixAdmits()
     {
