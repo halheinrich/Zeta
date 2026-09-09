@@ -146,7 +146,10 @@ two print a trend matrix, which § 2 keeps as presentation; this prints what
 decides — every rational of denominator at or below `Q` that **no** enclosure
 excludes. `Q` is derived as `floor(ε^(-1/2))` from the run's own final bound,
 the depth a generic sweep would have reached, because a cap chosen by hand
-decides how impressive the collapse looks and nothing checks it.
+decides how impressive the collapse looks and nothing checks it. That is a
+*sizing law about* `DenominatorSweep` and not a report of one: `survivors` runs
+no sweep, having no trend matrix to fill, which is what took `survivors 3 2 14`
+from 148 s to a second.
 
 Each survivor is printed **with its null**: `6*ε*q²/π²`, how many rationals of
 that denominator a *generic* target of this precision would leave standing by

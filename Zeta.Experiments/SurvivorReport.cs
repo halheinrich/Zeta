@@ -24,9 +24,10 @@ namespace HalHeinrich.Numerics.Experiments;
 /// <b>The denominator bound's axis is this search's, not the run's searcher's.</b>
 /// <see cref="SurvivorSearch"/> takes a largest denominator, so what comes back is a denominator
 /// claim whatever <see cref="RatioRun.Execute"/> was given to sweep with. The two agree in this
-/// command because it runs <see cref="DenominatorSweep"/> and derives the bound from that
-/// searcher's own generic depth - by construction rather than by luck, which is the distinction
-/// § 1 was amended to keep visible.
+/// command because the bound is derived from <see cref="DenominatorSweep"/>'s generic depth - by
+/// construction rather than by luck, which is the distinction § 1 was amended to keep visible.
+/// That derivation is § 2's sizing law for that searcher and not a report of a sweep: the survivor
+/// command runs none, having no trend matrix to fill.
 /// </para>
 /// </remarks>
 internal sealed class SurvivorReport

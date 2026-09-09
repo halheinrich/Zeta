@@ -33,6 +33,36 @@
       per-parameter summary.
     -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <!--
+      This application times itself, and tiered compilation makes a short
+      self-measurement unrepresentative of the long run that follows it.
+      `survivors` samples a walk of a few thousand candidates, solves for what
+      each of its two loops costs, and refuses the real walk if the prediction
+      passes a budget in SECONDS. With loop-bearing methods quick-jitted, that
+      sample runs in unoptimised code while the run it is pricing does not, and
+      the runtime promotes on a timer that restarts while new methods are still
+      compiling - so the reading depends on how much happened to run before it.
+
+      Measured 2026-09-09, and it is not a small effect. `survivors 3 4 11` was
+      priced at 99 s against a realised 117 while the command still bought a
+      DenominatorSweep at every target; with that sweep removed - which is the
+      commit this setting arrives in - the same sample priced it at 510 s and
+      the run was falsely refused. The sweep had been warming the arithmetic by
+      accident, and the guard had been leaning on it.
+
+      Turning this off compiles a method containing a loop at full optimisation
+      the first time it is called, so the sample and the run see the same code.
+      It costs a little start-up and nothing else: measured here, the default
+      exhibit's walk was 2.14 s either way, and `survivors 3 4 11` went from a
+      false refusal to 130 s predicted against 115 s realised.
+
+      Scoped to this project, which is the only one in the repository that
+      measures its own speed. Zeta.Tests must NOT acquire it - ../AGENTS.md
+      section Testing discipline keeps a test off the wall clock entirely, so
+      there is nothing there for it to protect.
+    -->
+    <TieredCompilationQuickJitForLoops>false</TieredCompilationQuickJitForLoops>
   </PropertyGroup>
 
   <!--

@@ -884,6 +884,72 @@ public sealed class SurvivorReportTests
         Assert.Contains("pi^3 / zeta(3)", written, StringComparison.Ordinal);
     }
 
+    // ---------- the search the command does not run ----------
+
+    [Fact]
+    public void Searcher_ProposesNothingAtEveryTarget()
+    {
+        // Counted through RatioRun.Execute's own searcher parameter, which is the seam the command
+        // uses - so what is asserted is the thing the run does, not a property of a type it
+        // happens to name. The wrapper records that the seam was exercised once per target and
+        // that nothing came back through it.
+        var counting = new Counting(SurvivorRun.Searcher);
+        RatioRun run = Sweepable(counting);
+
+        Assert.Equal(3, counting.Calls);
+        Assert.Equal(0, counting.Candidates);
+        Assert.Empty(run.Matrix.Rows);
+    }
+
+    [Fact]
+    public void Searcher_IsWhatADenominatorSweepInThatPositionWouldNotBe()
+    {
+        // The contrast that makes the assertion above mean something. The same three targets with
+        // the reference searcher underneath propose a candidate apiece and fill the matrix - which
+        // is what survivors was paying for and discarding until halheinrich/Math#64 ruling 6.
+        // Decidable by counting rather than inferred from a clock, which is what AGENTS.md section
+        // Testing discipline asks of a claim about cost.
+        var counting = new Counting(new DenominatorSweep());
+        RatioRun run = Sweepable(counting);
+
+        Assert.Equal(3, counting.Calls);
+        Assert.True(counting.Candidates > 0, "The reference searcher must propose something here.");
+        Assert.NotEmpty(run.Matrix.Rows);
+    }
+
+    /// <summary>
+    /// A run whose ratio is 6 and whose enclosures a sweep terminates on, so that "the searcher
+    /// proposed nothing" is a fact about the searcher rather than about an unreachable target.
+    /// </summary>
+    private static RatioRun Sweepable(IRationalApproximator searcher) =>
+        RatioRun.Execute(
+            StubConstant.Halving(BigRational.FromInteger(3), Ratio(1, 8)),
+            2,
+            StubConstant.Halving(Ratio(3, 2), Ratio(1, BigInteger.Pow(10, 12))),
+            [Ratio(1, 16), Ratio(1, 256), Ratio(1, 1024)],
+            searcher);
+
+    /// <summary>A searcher that passes everything through and counts what went by.</summary>
+    private sealed class Counting(IRationalApproximator inner) : IRationalApproximator
+    {
+        public int Calls { get; private set; }
+
+        public int Candidates { get; private set; }
+
+        public IEnumerable<RationalCandidate> Search(Approximation enclosure)
+        {
+            Calls++;
+
+            // Materialised rather than yielded through: RatioRun enumerates what it is handed, and
+            // a lazy wrapper would count only as far as the caller pulled - which is the thing
+            // under test.
+            RationalCandidate[] proposed = [.. inner.Search(enclosure)];
+            Candidates += proposed.Length;
+
+            return proposed;
+        }
+    }
+
     // ---------- the document ----------
 
     [Fact]

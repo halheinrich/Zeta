@@ -113,6 +113,21 @@ internal static class SurvivorRun
     /// </remarks>
     public const int TrackedCap = 4;
 
+    /// <summary>The searcher this command drives the pipeline with, which does nothing.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A run whose result is a survivor set has no use for a trend matrix, and was paying for
+    /// one at every target.</b> <see cref="NoSearch"/> carries the argument and the measurements;
+    /// what is here is the wiring, and the fact that it is a member rather than a literal at the
+    /// call site so that a test can put it through <see cref="RatioRun.Execute"/>'s own searcher
+    /// parameter and count what it proposes.
+    /// </para>
+    /// <para>
+    /// Stateless, so one instance serves every run.
+    /// </para>
+    /// </remarks>
+    public static IRationalApproximator Searcher { get; } = new NoSearch();
+
     /// <summary>How long this command will spend enumerating candidates before it refuses.</summary>
     /// <remarks>
     /// <para>
@@ -215,6 +230,13 @@ internal static class SurvivorRun
     /// rather than a pass count so a slower machine spends fewer passes reaching the same place,
     /// and it bounds the whole calibration at well under a second on any run.
     /// </para>
+    /// <para>
+    /// <b>It is not the whole answer and must not be relied on as one.</b>
+    /// <c>Zeta.Experiments.csproj</c> turns off quick-jitting for loop-bearing methods, so the walk
+    /// is compiled at full optimisation the first time it runs and the sample sees the code the run
+    /// will. That project file carries the measurement; what this constant then buys is the
+    /// residue - the scheduler, the caches, whatever a first pass over cold data costs.
+    /// </para>
     /// </remarks>
     public const double SampleWarmUpSeconds = 0.3;
 
@@ -251,7 +273,7 @@ internal static class SurvivorRun
 
         var clock = Stopwatch.StartNew();
         RatioRun run = RatioRun.Execute(
-            new MachinPi(), request.Order, new EulerMaclaurinZeta(request.Order), schedule);
+            new MachinPi(), request.Order, new EulerMaclaurinZeta(request.Order), schedule, Searcher);
         IReadOnlyList<Approximation> enclosures = SurvivorReport.Distinct(SurvivorReport.EnclosuresOf(run));
 
         BigInteger bound = SurvivorReport.DerivedBound(enclosures[^1]);
@@ -790,13 +812,13 @@ internal static class SurvivorRun
         return new ChartCaption(
             string.Create(CultureInfo.InvariantCulture, $"pi^{request.Order} / zeta({request.Order})"),
             string.Create(CultureInfo.InvariantCulture, $"MachinPi, EulerMaclaurinZeta({request.Order})"),
-            "DenominatorSweep",
+            "SurvivorSearch",
             string.Create(CultureInfo.InvariantCulture,
                 $"{request.ScheduleLabel}, {run.Iterations.Count} targets, " +
                 $"{enclosures.Count} distinct enclosures"),
             string.Create(CultureInfo.InvariantCulture,
-                $"Q = {bound} = floor(eps^(-1/2)), eps = {Presentation.Magnitude(final.MaxError)} " +
-                $"the final enclosure's half-width"));
+                $"Q = {bound} = floor(eps^(-1/2)), DenominatorSweep's generic depth at " +
+                $"eps = {Presentation.Magnitude(final.MaxError)}, the final enclosure's half-width"));
     }
 
     /// <summary>Writes what this run is about to do, before it costs anything.</summary>
@@ -820,7 +842,7 @@ internal static class SurvivorRun
             $"pi^{order} / zeta({order}) - the survivor set, which is what section 2 step 6 says a run reports."));
         notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  providers   MachinPi, EulerMaclaurinZeta({order})   search  DenominatorSweep"));
+            $"  providers   MachinPi, EulerMaclaurinZeta({order})   search  SurvivorSearch"));
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  schedule    {request.ScheduleLabel}, {columns} targets"));
         notes.WriteLine();
@@ -941,8 +963,10 @@ internal static class SurvivorRun
 
         notes.WriteLine();
         notes.WriteLine("  The axis is denominators. That is SurvivorSearch's own axis - it takes a");
-        notes.WriteLine("  largest denominator - and not the run searcher's, though the two agree here:");
-        notes.WriteLine("  Q is derived from DenominatorSweep's generic depth and the run swept with it.");
+        notes.WriteLine("  largest denominator - and Q is set to the depth a generic DenominatorSweep");
+        notes.WriteLine("  would have reached at this precision. That is section 2's sizing law for");
+        notes.WriteLine("  that searcher, not a sweep this run performed: it performs none, since a");
+        notes.WriteLine("  survivor set is what decides and the trend matrix is presentation.");
         notes.WriteLine();
         notes.WriteLine("WHAT IT DOES NOT");
         notes.WriteLine();

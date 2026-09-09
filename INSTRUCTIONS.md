@@ -79,11 +79,25 @@ projection and is one line.
 
 **The bound is derived, never picked.** `Q = floor(ε^(-1/2))` from the final
 enclosure, which is the depth a generic sweep reaches by § 2's own cost law.
-That derivation presumes the denominator axis, so the command sweeps with
-`DenominatorSweep` and takes no searcher. Note that `Q`'s axis is
-`SurvivorSearch`'s own — it takes a largest denominator — and not the run
+That derivation presumes the denominator axis, so the command takes no searcher
+and names `DenominatorSweep` wherever it reports the bound. Note that `Q`'s axis
+is `SurvivorSearch`'s own — it takes a largest denominator — and not the run
 searcher's; the two agree here by construction rather than by luck, which is
 the distinction § 1 was amended to keep visible.
+
+**It names that sweep and does not run one** — as of ruling 6 on
+`halheinrich/Math#64`, 2026-09-09. The derivation is a *sizing law about* that
+searcher, and the command was separately buying a real `DenominatorSweep` at
+every target to fill a trend matrix `SurvivorReport.EnclosuresOf` never reads.
+Parity was the tell and it is exact: the sweep stops at the first rational inside
+the enclosure, which for an even order is the answer at `b = 1` and for an odd
+order is nothing until about `ε^(-1/2)`. At `1e-2 .. 1e-14`, orders 3, 5 and 7
+took 159 s, over 400 s and over 400 s where orders 4, 6, 8 and 10 took a second
+or less — and order 10 reaches the same precision and the same `Q` that cost
+order 3 its 159 s. So it was never overshoot and never the order. `SurvivorRun`
+now passes `NoSearch` through `RatioRun.Execute`'s searcher parameter, which is
+where the seam already was; `walk` and `target` keep the trend path, which § 2
+keeps as presentation.
 
 **Adjacent repeats are dropped before intersecting.** A schedule can ask for a
 target the realised bound has already passed, and intersecting an enclosure
