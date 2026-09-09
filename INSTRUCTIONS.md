@@ -60,11 +60,44 @@ than being added when results appear.
   scaffolding rather than a fixture: the pipeline has decisions that no real
   provider's numbers reach, and a stub is the only way to hand it the numbers
   that do.
-- **`Zeta.Experiments`** — a runnable project, not a test project. Two
-  commands: `walk`, the ζ(2) exhibit, and `target`, the π³/ζ(3) run. Everything
-  in it is `internal`, which is what `.editorconfig` expects — CA1515 is
-  suppressed only under `[**/*Tests.cs]`, so a public type here fails the
-  build.
+- **`Zeta.Experiments`** — a runnable project, not a test project. Three
+  commands: `walk`, the ζ(2) exhibit; `target`, the π³/ζ(3) run; and
+  `survivors`, which reports § 2 step 6's survivor set and draws it as an SVG
+  on stdout. Everything in it is `internal`, which is what `.editorconfig`
+  expects — CA1515 is suppressed only under `[**/*Tests.cs]`, so a public type
+  here fails the build.
+
+### The survivor set needed no reshaping to compute
+
+`walk` and `target` both report a bound read off the last candidate a sweep
+proposed, and both print the trend matrix § 2 now keeps as presentation.
+`survivors` reports what § 2 step 6 says decides. Nothing in the pipeline had
+to change for it: `SurvivorSearch` takes enclosures of the unknown, and
+`RatioRun.Iterations` has been yielding them all along as
+`RatioIteration.Enclosure.Ratio`. `SurvivorReport.EnclosuresOf` is that
+projection and is one line.
+
+**The bound is derived, never picked.** `Q = floor(ε^(-1/2))` from the final
+enclosure, which is the depth a generic sweep reaches by § 2's own cost law.
+That derivation presumes the denominator axis, so the command sweeps with
+`DenominatorSweep` and takes no searcher. Note that `Q`'s axis is
+`SurvivorSearch`'s own — it takes a largest denominator — and not the run
+searcher's; the two agree here by construction rather than by luck, which is
+the distinction § 1 was amended to keep visible.
+
+**Adjacent repeats are dropped before intersecting.** A schedule can ask for a
+target the realised bound has already passed, and intersecting an enclosure
+with itself refutes nothing while costing a full enumeration. So the count is
+quoted per *distinct* enclosure and the chart says so — which basis a count is
+quoted on is part of the count, as the ζ(2) walk's three readings already
+record.
+
+**The cost law is not `target`'s.** The expensive step is the collapse chart's
+first point, which counts every rational under `Q` inside the *widest*
+enclosure — about `h/ε` candidates for a first target `h` and a last `ε`. One
+more decade of schedule is ten times the price, where `target`'s is about
+twice. So the schedule is a constant with `SurvivorRun.Refuse` checking the
+estimate against a measured budget before spending it.
 
 ### Presentation lives here, not in the library
 
@@ -76,12 +109,23 @@ in its runner for the same reason. If a consumer ever appears outside the
 runner, moving it is additive. `Zeta.Experiments/MatrixReport.cs` carries the
 argument in full.
 
-**Two presentation decisions are pure functions with tests**, because both read
-plausibly when wrong: normalising the blame split, and truncating an exact
-rational to decimal. `Zeta.Tests` is given sight of the runner's internals for
-those alone. Testing a formatter does not make the runner a test project —
-`../AGENTS.md` § Exactness discipline separates the two by whether a run has a
-known answer and whether it depends on wall-clock time.
+**The runner's pure functions have tests**, because each of them reads
+plausibly when wrong: normalising the blame split, truncating an exact rational
+to decimal, the survivor report's intersection and derived bound, and the axis
+that turns an exact value into a pixel. `Zeta.Tests` is given sight of the
+runner's internals for those. Testing a formatter does not make the runner a
+test project — `../AGENTS.md` § Exactness discipline separates the two by
+whether a run has a known answer and whether it depends on wall-clock time, and
+none of these have either property.
+
+**The exactness boundary is the coordinate transform and nothing above it.**
+§ 2 permits decimals at presentation and nowhere else, and a log axis needs
+one. Every plotted quantity is computed in exact rationals and reaches a chart
+as an exact value; `Presentation.DecimalExponent` turns it into a decimal
+exponent and `Axis` turns that into a coordinate. Nothing downstream feeds back
+into a value, a bound or a decision — in particular the exclusion marks on the
+distance chart come from `Approximation.Contains` on exact values, never from
+comparing the two doubles the chart drew.
 
 **The ζ(2) walk is here although its answer is known**, and that is not a
 violation of the controls-are-tests rule. It is the sniff test for the

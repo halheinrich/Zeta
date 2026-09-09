@@ -38,13 +38,15 @@
     <ProjectReference Include="..\Zeta\Zeta.csproj" />
 
     <!--
-      The experiment runner, for its presentation only. Zeta.Experiments makes
+      The experiment runner, for its pure functions. Zeta.Experiments makes
       that project's internals visible here, and what is asserted of them is
-      the two decisions that read plausibly when wrong - normalising the blame
-      split, and truncating an exact rational to decimal. Nothing here runs an
-      experiment: those have no pass or fail, depend on wall-clock time, and
-      ../AGENTS.md section Exactness discipline keeps them out of a test
-      project for both reasons.
+      everything whose answer a test can know: the two presentation decisions
+      that read plausibly when wrong - normalising the blame split, and
+      truncating an exact rational to decimal - along with the survivor
+      report's intersection and derived bound, and the chart geometry the
+      exactness boundary sits on. Nothing here runs an experiment: those have
+      no pass or fail, depend on wall-clock time, and ../AGENTS.md section
+      Exactness discipline keeps them out of a test project for both reasons.
     -->
     <ProjectReference Include="..\Zeta.Experiments\Zeta.Experiments.csproj" />
   </ItemGroup>

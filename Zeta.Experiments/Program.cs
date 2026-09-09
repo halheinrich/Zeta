@@ -14,7 +14,14 @@ namespace HalHeinrich.Numerics.Experiments;
 /// dotnet run --project Zeta.Experiments -- walk
 /// dotnet run --project Zeta.Experiments -- target
 /// dotnet run --project Zeta.Experiments -- target 12
+/// dotnet run --project Zeta.Experiments -- survivors &gt; survivors.svg
 /// </code>
+/// <para>
+/// <c>survivors</c> writes an SVG rather than a table, so its stdout is redirected to a file the
+/// way <c>RealConstants.Experiments</c>' <c>compare</c> is. Redirection is the caller's job:
+/// nothing here opens a file, which keeps the runner's only output channels the two every other
+/// command uses.
+/// </para>
 /// <para>
 /// <b>Nothing here is interactive, and nothing here may become interactive.</b> There is no
 /// <c>Console.ReadKey</c> and no <c>Console.IsInputRedirected</c>. An agent session cannot
@@ -37,6 +44,9 @@ internal static class Program
 
     /// <summary>The pi^3/zeta(3) run's command name, spelled once.</summary>
     public const string TargetCommand = "target";
+
+    /// <summary>The survivor report's command name, spelled once.</summary>
+    public const string SurvivorsCommand = "survivors";
 
     private static int Main(string[] args)
     {
@@ -66,6 +76,11 @@ internal static class Program
             return TargetRun.Run(rest);
         }
 
+        if (string.Equals(args[0], SurvivorsCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            return SurvivorRun.Run(rest);
+        }
+
         Console.Error.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"no experiment named '{args[0]}' - try 'list'."));
         return 2;
@@ -82,16 +97,22 @@ internal static class Program
         notes.WriteLine("usage: dotnet run --project Zeta.Experiments -- <name> [argument]");
         notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  {WalkCommand,-16}  pi^2 / zeta(2), whose answer is 6, one provider step at a"));
+            $"  {WalkCommand,-17}  pi^2 / zeta(2), whose answer is 6, one provider step at a"));
         notes.WriteLine("                    time. pi, pi^2 and zeta(2) each with their own bound,");
         notes.WriteLine("                    the composed ratio, the blame split, and a ladder of");
         notes.WriteLine("                    rival rationals being refuted beside it.");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  {TargetCommand + " [exponent]",-16}  pi^3 / zeta(3), whose answer nobody knows. Reports a"));
+            $"  {TargetCommand + " [exponent]",-17}  pi^3 / zeta(3), whose answer nobody knows. Reports a"));
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"                    denominator bound. The schedule runs 1e-{TargetRun.FirstExponent} to"));
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"                    1e-<exponent>, default {TargetRun.DefaultLastExponent}, ceiling {TargetRun.MaxLastExponent}."));
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {SurvivorsCommand + " [order]",-17}  pi^n / zeta(n) reported the way section 2 step 6 says a"));
+        notes.WriteLine("                    run reports: the survivor set under a denominator bound");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"                    fixed in advance. Order defaults to {SurvivorRun.DefaultOrder}, ceiling {SurvivorRun.MaxOrder}."));
+        notes.WriteLine("                    Two charts go to stdout as ONE SVG - redirect it.");
         notes.WriteLine();
         notes.WriteLine("what they are for");
         notes.WriteLine();
@@ -108,6 +129,12 @@ internal static class Program
         notes.WriteLine("  measured number, not a computed bound. Ask for one past the ceiling and it");
         notes.WriteLine("  says what the run would have cost instead of starting it.");
         notes.WriteLine();
+        notes.WriteLine("  survivors is the one that reports a RESULT rather than a trend. walk and");
+        notes.WriteLine("  target both print a matrix that section 2 now keeps as presentation; this");
+        notes.WriteLine("  prints what decides - every rational under a bound that no enclosure");
+        notes.WriteLine("  excludes. An even order is a control whose answer section 1 lists; an odd");
+        notes.WriteLine("  one is the question. Its bound is derived, never picked.");
+        notes.WriteLine();
         notes.WriteLine("worth running");
         notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
@@ -120,6 +147,11 @@ internal static class Program
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  {TargetCommand,-11}     the run itself, about 35 s, ending some four million"));
         notes.WriteLine("                  denominators deep");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {SurvivorsCommand,-11}     the collapse of a survivor set to the answer, on a target"));
+        notes.WriteLine("                  whose answer is known - redirect it and open the SVG");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {SurvivorsCommand + " 3",-11}     the same against pi^3/zeta(3), where nothing is known"));
         notes.WriteLine();
     }
 }

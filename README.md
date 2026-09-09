@@ -128,6 +128,7 @@ like.
 dotnet run --project Zeta.Experiments -- list
 dotnet run --project Zeta.Experiments -- walk
 dotnet run --project Zeta.Experiments -- target
+dotnet run --project Zeta.Experiments -- survivors > survivors.svg
 ```
 
 `walk` is **π²/ζ(2), whose answer is 6**, driven one provider step at a time:
@@ -139,6 +140,20 @@ about that output can be checked by reading it.
 `target` is **π³/ζ(3)**, and reports a denominator bound. It runs no deeper
 than its ceiling, which is a measured number rather than a computed bound: ask
 for more and it tells you what the run would have cost instead of starting it.
+
+`survivors` is the one that reports a **result** rather than a trend. The other
+two print a trend matrix, which § 2 keeps as presentation; this prints what
+decides — every rational of denominator at or below `Q` that **no** enclosure
+excludes. `Q` is derived as `floor(ε^(-1/2))` from the run's own final bound,
+the depth a generic sweep would have reached, because a cap chosen by hand
+decides how impressive the collapse looks and nothing checks it.
+
+It takes the order of ζ, defaulting to 2. An even order has an exact answer
+§ 1 lists, so the set is checkable by eye; an odd one is the question. Two
+charts go to **stdout as one SVG** — the collapse of the survivor count, and
+each followed candidate's distance against the half-width that refutes it —
+so redirect it as above and open the file. Labels and progress go to stderr,
+the same split every command here uses.
 
 ## Building
 

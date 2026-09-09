@@ -57,6 +57,13 @@
     functions of their inputs, so the test project is given sight of them and
     holds them against hand-computed values.
 
+    The same seam now carries the survivor report and the chart geometry,
+    which are pure in the same way and fail as quietly: a list of enclosures
+    in and a survivor set out, a value and a range in and a pixel out. An
+    intersection that filtered on the latest enclosure, or an axis that
+    inverted itself, produces output that reads perfectly well and says the
+    wrong thing.
+
     Everything here is internal, which is also what .editorconfig's CA1515
     arrangement expects: that rule is suppressed only under [**/*Tests.cs], so
     a public type in this project would fail the build. The types are an
