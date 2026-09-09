@@ -15,6 +15,7 @@ namespace HalHeinrich.Numerics.Experiments;
 /// dotnet run --project Zeta.Experiments -- target
 /// dotnet run --project Zeta.Experiments -- target 12
 /// dotnet run --project Zeta.Experiments -- survivors &gt; survivors.svg
+/// dotnet run --project Zeta.Experiments -- survivors 3 2 9 &gt; survivors3.svg
 /// </code>
 /// <para>
 /// <c>survivors</c> writes an SVG rather than a table, so its stdout is redirected to a file the
@@ -94,7 +95,7 @@ internal static class Program
         notes.WriteLine("against a target whose answer is known and one whose answer is not.");
         notes.WriteLine("Data goes to stdout; labels and caveats go to stderr. No pass, no fail.");
         notes.WriteLine();
-        notes.WriteLine("usage: dotnet run --project Zeta.Experiments -- <name> [argument]");
+        notes.WriteLine("usage: dotnet run --project Zeta.Experiments -- <name> [arguments]");
         notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  {WalkCommand,-17}  pi^2 / zeta(2), whose answer is 6, one provider step at a"));
@@ -113,6 +114,13 @@ internal static class Program
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"                    fixed in advance. Order defaults to {SurvivorRun.DefaultOrder}, ceiling {SurvivorRun.MaxOrder}."));
         notes.WriteLine("                    Two charts go to stdout as ONE SVG - redirect it.");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {SurvivorsCommand + " [o f l]",-17}  the same, with both ends of the schedule named:"));
+        notes.WriteLine("                    'survivors 3 2 12' runs 1e-2 .. 1e-12. It defaults to");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"                    1e-{SurvivorRun.DefaultFirstExponent} .. 1e-{SurvivorRun.DefaultLastExponent}, " +
+            $"and takes both ends or neither, since"));
+        notes.WriteLine("                    one exponent alone could name either.");
         notes.WriteLine();
         notes.WriteLine("what they are for");
         notes.WriteLine();
@@ -135,23 +143,43 @@ internal static class Program
         notes.WriteLine("  excludes. An even order is a control whose answer section 1 lists; an odd");
         notes.WriteLine("  one is the question. Its bound is derived, never picked.");
         notes.WriteLine();
+        notes.WriteLine("  survivors has no depth ceiling, unlike target, because what a schedule");
+        notes.WriteLine("  costs is priced off the enclosures a run REALISES and an argument cannot");
+        notes.WriteLine("  see those. It runs, then refuses to pay for the enumeration if that comes");
+        notes.WriteLine("  out past its budget. The opening step is about h*Q^2 for a first target h,");
+        notes.WriteLine("  so a decade off the last end costs ten times as much, while a decade off");
+        notes.WriteLine("  the first end saves whatever the providers' next step lands on - a factor");
+        notes.WriteLine("  of eight to the decade on average here, and lumpy, since h is realised");
+        notes.WriteLine("  rather than requested. Deeper runs are bought by starting later, at the");
+        notes.WriteLine("  cost of a shorter collapse chart.");
+        notes.WriteLine();
         notes.WriteLine("worth running");
         notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  {WalkCommand,-11}     the halting rule watchable - who owns the error, who gets"));
-        notes.WriteLine("                  advanced, and two columns that do nothing because the");
-        notes.WriteLine("                  realised bound had already passed the next target");
+            $"  {WalkCommand,-16}  the halting rule watchable - who owns the error, who"));
+        notes.WriteLine("                    gets advanced, and two columns that do nothing because");
+        notes.WriteLine("                    the realised bound had already passed the next target");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  {TargetCommand + " 8",-11}     the same shape in about a tenth of a second, for a look at"));
-        notes.WriteLine("                  the report before paying for the real one");
+            $"  {TargetCommand + " 8",-16}  the same shape in about a tenth of a second, for a look"));
+        notes.WriteLine("                    at the report before paying for the real one");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  {TargetCommand,-11}     the run itself, about 35 s, ending some four million"));
-        notes.WriteLine("                  denominators deep");
+            $"  {TargetCommand,-16}  the run itself, about 35 s, ending some four million"));
+        notes.WriteLine("                    denominators deep");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  {SurvivorsCommand,-11}     the collapse of a survivor set to the answer, on a target"));
-        notes.WriteLine("                  whose answer is known - redirect it and open the SVG");
+            $"  {SurvivorsCommand,-16}  the collapse of a survivor set to the answer, on a"));
+        notes.WriteLine("                    target whose answer is known - redirect it and open");
+        notes.WriteLine("                    the SVG");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  {SurvivorsCommand + " 3",-11}     the same against pi^3/zeta(3), where nothing is known"));
+            $"  {SurvivorsCommand + " 3",-16}  the same against pi^3/zeta(3), where nothing is known -"));
+        notes.WriteLine("                    a few seconds, ending at Q = 11,585");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {SurvivorsCommand + " 3 2 9",-16}  the deepest run the budget admits from the default"));
+        notes.WriteLine("                    first end, about 20 s and Q = 32,768; one decade further");
+        notes.WriteLine("                    is refused at 67.2M candidates against a budget of 60M");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {SurvivorsCommand + " 3 4 11",-16}  what starting later buys: Q = 741,455, some 64 times"));
+        notes.WriteLine("                    the default's bound, in about three minutes and on a");
+        notes.WriteLine("                    collapse chart of eight enclosures rather than seven");
         notes.WriteLine();
     }
 }

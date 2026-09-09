@@ -400,6 +400,194 @@ public sealed class SurvivorReportTests
         Assert.Contains("Shorten the schedule", refusal, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Refuse_IsWhatADeeperScheduleNowRunsInto()
+    {
+        // The advice in that refusal became actionable when the schedule became an argument: a
+        // caller can now shorten it. What follows is the two sides of the budget priced by hand,
+        // at a widest enclosure of half-width 1e-2 - the default schedule's first target.
+        //
+        // The shipped last target of 1e-8 derives Q = 1e4, so the opening step is 1e-2 * 1e8 =
+        // 1e6, comfortably inside the budget. Four decades further derives Q = 1e6 and an opening
+        // step of 1e10, four orders past it. Nothing between them is asserted here: what the run
+        // actually realises is tighter than what it was asked for, and only a run knows by how
+        // much.
+        Approximation widest = At(BigRational.FromInteger(6), 1, 100);
+
+        BigInteger shipped = SurvivorReport.DerivedBound(At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 8)));
+        BigInteger deeper = SurvivorReport.DerivedBound(At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 12)));
+
+        Assert.Null(SurvivorRun.Refuse(widest, shipped));
+        Assert.NotNull(SurvivorRun.Refuse(widest, deeper));
+    }
+
+    // ---------- the schedule, which is an argument rather than a constant ----------
+
+    [Fact]
+    public void RefuseSchedule_AcceptsTheShippedDefault() =>
+        Assert.Null(SurvivorRun.RefuseSchedule(SurvivorRun.DefaultFirstExponent, SurvivorRun.DefaultLastExponent));
+
+    [Fact]
+    public void RefuseSchedule_AcceptsASingleColumn()
+    {
+        // Deliberately unlike target, which refuses one because its whole output is a trend across
+        // columns. This command's output is a survivor set, which one enclosure already produces -
+        // and a run whose providers realise the same error twice collapses to one distinct
+        // enclosure anyway, so nothing here is a new path.
+        Assert.Null(SurvivorRun.RefuseSchedule(4, 4));
+    }
+
+    [Fact]
+    public void RefuseSchedule_RefusesAScheduleThatLoosens()
+    {
+        // Refused on the argument so that TargetSchedule.Decades is never handed a range it would
+        // reject with a message naming its own parameters instead of this experiment's.
+        string? refusal = SurvivorRun.RefuseSchedule(8, 2);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("loosens", refusal, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(int.MinValue)]
+    public void RefuseSchedule_RefusesAnExponentThatNamesNoPrecision(int firstExponent)
+    {
+        // At zero the target is 1 and below it looser still, and Q = floor(eps^(-1/2)) and the
+        // null 6*eps*q^2/pi^2 both read the exponent as a decimal place. TargetSchedule.Decades
+        // accepts these and says so - a loose first column is a well-formed schedule. It is this
+        // command's report that cannot carry one.
+        Assert.NotNull(SurvivorRun.RefuseSchedule(firstExponent, SurvivorRun.DefaultLastExponent));
+    }
+
+    [Fact]
+    public void RefuseSchedule_PutsNoCeilingOnDepth()
+    {
+        // There is no counterpart to target's MaxLastExponent, and that is the point: what a deep
+        // schedule costs is priced off the enclosures a run realises, which this cannot see. A
+        // schedule is refused for what it would cost, by Refuse, and never for being deep.
+        Assert.Null(SurvivorRun.RefuseSchedule(2, 40));
+    }
+
+    // ---------- the arguments, read apart from anything they set off ----------
+
+    [Fact]
+    public void Interpret_DefaultsToTheOrderAndScheduleTheExhibitHasAlwaysRun()
+    {
+        // Literals, not the shipped constants, for the reason TargetRunGuardTests spells out about
+        // its own: a test written against the constant moves with it, and this one exists to make
+        // moving the default a deliberate act that reddens something.
+        Assert.Null(SurvivorRun.Interpret([], out SurvivorRequest request));
+
+        Assert.Equal(new SurvivorRequest(2, 2, 8), request);
+        Assert.Equal(TargetSchedule.Decades(2, 8), request.Schedule());
+    }
+
+    [Fact]
+    public void Interpret_TakesAnOrderAloneAndLeavesTheScheduleAtItsDefault()
+    {
+        Assert.Null(SurvivorRun.Interpret(["3"], out SurvivorRequest request));
+
+        Assert.Equal(3, request.Order);
+        Assert.Equal(TargetSchedule.Decades(2, 8), request.Schedule());
+    }
+
+    [Fact]
+    public void Interpret_CarriesBothEndsThroughToTheScheduleBuilder()
+    {
+        // The whole change: an explicit pair reaches TargetSchedule.Decades unaltered, so the run
+        // is driven to the targets that were asked for rather than to a constant pair.
+        Assert.Null(SurvivorRun.Interpret(["3", "2", "12"], out SurvivorRequest request));
+
+        Assert.Equal(new SurvivorRequest(3, 2, 12), request);
+        Assert.Equal(TargetSchedule.Decades(2, 12), request.Schedule());
+        Assert.NotEqual(TargetSchedule.Decades(2, 8), request.Schedule());
+    }
+
+    [Fact]
+    public void Interpret_RefusesOneExponentRatherThanGuessWhichEndItNames()
+    {
+        // A lone exponent could name either end, and the two readings differ by ten decades of
+        // cost per decade of disagreement. Taken as a pair or not at all.
+        string? refusal = SurvivorRun.Interpret(["3", "12"], out SurvivorRequest request);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("both ends", refusal, StringComparison.Ordinal);
+        Assert.Equal(default(SurvivorRequest), request);
+    }
+
+    [Fact]
+    public void Interpret_RefusesMoreArgumentsThanTheCommandHas() =>
+        Assert.NotNull(SurvivorRun.Interpret(["3", "2", "12", "1"], out _));
+
+    [Theory]
+    [InlineData("three")]
+    [InlineData("3.5")]
+    [InlineData("")]
+    public void Interpret_RefusesAnOrderThatIsNotAWholeNumber(string order)
+    {
+        string? refusal = SurvivorRun.Interpret([order], out _);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("is not an order", refusal, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("two", "12")]
+    [InlineData("2", "twelve")]
+    [InlineData("2", "1e12")]
+    public void Interpret_RefusesAnExponentThatIsNotAWholeNumber(string first, string last)
+    {
+        // The same treatment the order argument has always had, in the two new positions.
+        string? refusal = SurvivorRun.Interpret(["3", first, last], out _);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("is not an exponent", refusal, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Interpret_ReportsTheFirstUnreadableArgumentAndNotTheLast()
+    {
+        // Both exponents are unreadable; the message names the one the caller would fix first.
+        string? refusal = SurvivorRun.Interpret(["3", "two", "twelve"], out _);
+
+        Assert.Contains("'two'", refusal, StringComparison.Ordinal);
+        Assert.DoesNotContain("'twelve'", refusal, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Interpret_PutsBothGuardsInFrontOfTheRun()
+    {
+        // Neither refusal is reachable only by starting a run - which is the whole reason the
+        // reading of the arguments was split from the acting on them.
+        Assert.Equal(SurvivorRun.RefuseOrder(1), SurvivorRun.Interpret(["1"], out _));
+        Assert.Equal(SurvivorRun.RefuseSchedule(9, 3), SurvivorRun.Interpret(["3", "9", "3"], out _));
+    }
+
+    // ---------- what the reports say the run was ----------
+
+    [Fact]
+    public void ScheduleLabel_NamesBothEndsOfWhatWasAskedFor() =>
+        Assert.Equal("1e-3 .. 1e-11", new SurvivorRequest(3, 3, 11).ScheduleLabel);
+
+    [Fact]
+    public void Preamble_ReportsTheScheduleThatRanAndNotTheDefault()
+    {
+        // The line named two constants while the span was fixed. Now that it is an argument, a
+        // preamble still reading the default would describe a run that did not happen - and the
+        // SVG's caption carries the same label from the same property, so they cannot disagree.
+        using var notes = new StringWriter(CultureInfo.InvariantCulture);
+
+        SurvivorRun.Preamble(notes, new SurvivorRequest(3, 3, 11), 9);
+
+        string written = notes.ToString();
+
+        Assert.Contains("schedule    1e-3 .. 1e-11, 9 targets", written, StringComparison.Ordinal);
+        Assert.DoesNotContain("1e-2 .. 1e-8", written, StringComparison.Ordinal);
+        Assert.Contains("pi^3 / zeta(3)", written, StringComparison.Ordinal);
+    }
+
     // ---------- the document ----------
 
     [Fact]

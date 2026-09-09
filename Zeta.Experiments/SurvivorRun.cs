@@ -25,14 +25,29 @@ namespace HalHeinrich.Numerics.Experiments;
 /// not, which is the point of the bench.
 /// </para>
 /// <para>
-/// <b>The schedule is fixed, and the reason is a cost law rather than taste.</b> The expensive
-/// step is the collapse chart's first point, which counts every rational of denominator at or
-/// below <c>Q</c> inside the <i>widest</i> enclosure - about <c>h/eps</c> candidates, where
-/// <c>h</c> is the first target and <c>eps</c> the last. So deepening the schedule by one decade
-/// costs ten times as much, where <c>target</c>'s own schedule costs roughly double per decade.
-/// A knob whose every notch is ten times the last is not a knob a caller should turn casually, so
-/// the span is a constant here with its price stated, and <see cref="Refuse"/> checks the estimate
-/// against a budget before spending it.
+/// <b>The schedule is a parameter with a default, and the default is what it is because of a cost
+/// law rather than taste.</b> The expensive step is the collapse chart's first point, which counts
+/// every rational of denominator at or below <c>Q</c> inside the <i>widest</i> enclosure - about
+/// <c>h/eps</c> candidates, where <c>h</c> is the first target and <c>eps</c> the last. So
+/// deepening the schedule by one decade costs ten times as much, where <c>target</c>'s own
+/// schedule costs roughly double per decade. A knob whose every notch is ten times the last is not
+/// one to turn casually, which is why it was a constant until somebody had measured what the
+/// constant cost: a scratchpad probe on 2026-09-08 took this same ratio to <c>Q = 4.4e7</c> and
+/// found the schedule, not the providers and not the search, to be what confined the exhibit to
+/// <c>Q = 11,585</c>. So the span moved to the caller with its price stated, and
+/// <see cref="Refuse"/> still checks the estimate against a budget before spending it.
+/// </para>
+/// <para>
+/// <b>Starting the schedule later is the cheaper knob, and the one worth reaching for first.</b>
+/// The estimate is <c>h*Q^2</c>, so a decade off the last end multiplies <c>Q^2</c> by ten while a
+/// decade off the first end divides <c>h</c> by whatever the providers' steps happen to land on.
+/// That is not a decade and not even a constant: <c>h</c> is realised rather than requested, and
+/// these providers halve, so it comes out a power of two. Measured here at order 3, first ends of
+/// 2, 3, 4 and 5 realise <c>2^-8</c>, <c>2^-10</c>, <c>2^-15</c> and <c>2^-17</c> - a factor of
+/// four, then thirty-two, then four again, averaging about eight to the decade. So a caller who
+/// wants another decade of depth inside the same budget buys it by starting later, at the cost of
+/// a shorter collapse chart, and finds out what it bought by being told. That trade is the
+/// caller's to make, which is the whole reason both ends are arguments rather than only the last.
 /// </para>
 /// <para>
 /// <b>No pass, no fail.</b> § Exactness discipline: a target with an unknown answer belongs in a
@@ -41,11 +56,30 @@ namespace HalHeinrich.Numerics.Experiments;
 /// </remarks>
 internal static class SurvivorRun
 {
-    /// <summary>The first exponent of the schedule.</summary>
-    public const int FirstExponent = 2;
+    /// <summary>The first exponent of the schedule when none is given.</summary>
+    public const int DefaultFirstExponent = 2;
 
-    /// <summary>The last exponent of the schedule.</summary>
-    public const int LastExponent = 8;
+    /// <summary>The last exponent of the schedule when none is given.</summary>
+    /// <remarks>
+    /// Unchanged from when the span was a constant, and deliberately: at order 3 it derives
+    /// <c>Q = 11,585</c> and an opening step of about a million candidates, which is the few
+    /// seconds the exhibit has always cost. A deeper default is a separate judgement with the cost
+    /// law above attached to it, and would be made by someone deciding what a first-time reader
+    /// should wait for.
+    /// </remarks>
+    public const int DefaultLastExponent = 8;
+
+    /// <summary>The shallowest exponent either end of a schedule may name.</summary>
+    /// <remarks>
+    /// Every figure this command reports reads an exponent as a decimal place - the schedule
+    /// label, <c>Q = floor(eps^(-1/2))</c>, and the null <c>6*eps*q^2/pi^2</c>. At zero the target
+    /// is 1 and at anything below it the target is looser still, so there is no precision for
+    /// those figures to be read from; a negative one does not even print, since the label would
+    /// come out <c>1e--1</c>. <see cref="TargetSchedule.Decades"/> accepts such exponents and says
+    /// so, because a loose first column is well-formed as a <i>schedule</i>. It is this command's
+    /// report that cannot carry one, so the floor is here.
+    /// </remarks>
+    public const int MinExponent = 1;
 
     /// <summary>The zeta order when none is given.</summary>
     public const int DefaultOrder = 2;
@@ -88,11 +122,21 @@ internal static class SurvivorRun
     /// before the money is spent - unlike a sweep's depth, which <c>target</c> cannot know in
     /// advance and so guards with a hard-coded exponent instead.
     /// </para>
+    /// <para>
+    /// <b>This counts candidates, and a candidate is not a fixed price.</b> Measured at order 3
+    /// once the schedule became an argument: 4.6 microseconds each at <c>Q = 32,768</c>, about 20
+    /// at <c>Q = 741,455</c> - the gcd and the containment test work on operands that grow with
+    /// the denominator. So this number bounds the count and not the wait, and sixty million is a
+    /// few seconds at the shallow end of the schedules a caller can now ask for and a long sit at
+    /// the deep end. Whether it should be a time instead, or scale with <c>Q</c>, is
+    /// <c>halheinrich/Math#64</c> leg 3's to rule on; what changed here is only that the budget
+    /// became reachable by argument rather than by editing a constant.
+    /// </para>
     /// </remarks>
     public const long Budget = 60_000_000;
 
     /// <summary>Runs the survivor report and writes it.</summary>
-    /// <param name="arguments">Zero or one argument: the zeta order.</param>
+    /// <param name="arguments">The command's arguments, as <see cref="Interpret"/> reads them.</param>
     /// <returns>Zero when the run completed, 2 when the arguments or the estimated cost were refused.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="arguments"/> is null.</exception>
     public static int Run(string[] arguments)
@@ -101,33 +145,19 @@ internal static class SurvivorRun
 
         TextWriter notes = Console.Error;
 
-        if (arguments.Length > 1)
+        string? refused = Interpret(arguments, out SurvivorRequest request);
+        if (refused is not null)
         {
-            notes.WriteLine("survivors takes at most one argument, the order of zeta.");
+            notes.WriteLine(refused);
             return 2;
         }
 
-        int order = DefaultOrder;
-        if (arguments.Length == 1 &&
-            !int.TryParse(arguments[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out order))
-        {
-            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"'{arguments[0]}' is not an order. Give a whole number, as in 'survivors 3'."));
-            return 2;
-        }
-
-        string? refusal = RefuseOrder(order);
-        if (refusal is not null)
-        {
-            notes.WriteLine(refusal);
-            return 2;
-        }
-
-        IReadOnlyList<BigRational> schedule = TargetSchedule.Decades(FirstExponent, LastExponent);
-        Preamble(notes, order, schedule.Count);
+        IReadOnlyList<BigRational> schedule = request.Schedule();
+        Preamble(notes, request, schedule.Count);
 
         var clock = Stopwatch.StartNew();
-        RatioRun run = RatioRun.Execute(new MachinPi(), order, new EulerMaclaurinZeta(order), schedule);
+        RatioRun run = RatioRun.Execute(
+            new MachinPi(), request.Order, new EulerMaclaurinZeta(request.Order), schedule);
         IReadOnlyList<Approximation> enclosures = SurvivorReport.Distinct(SurvivorReport.EnclosuresOf(run));
 
         BigInteger bound = SurvivorReport.DerivedBound(enclosures[^1]);
@@ -151,10 +181,75 @@ internal static class SurvivorRun
 
         clock.Stop();
 
-        SurvivorChart.Write(Console.Out, report, Caption(order, run, enclosures, bound));
-        Epilogue(notes, report, order, clock.Elapsed.TotalSeconds);
+        SurvivorChart.Write(Console.Out, report, Caption(request, run, enclosures, bound));
+        Epilogue(notes, report, request.Order, clock.Elapsed.TotalSeconds);
 
         return 0;
+    }
+
+    /// <summary>What the command's arguments ask for, or the reason they are refused.</summary>
+    /// <param name="arguments">
+    /// Nothing, the order alone, or the order followed by both ends of the schedule -
+    /// <c>survivors</c>, <c>survivors 3</c>, <c>survivors 3 2 12</c>.
+    /// </param>
+    /// <param name="request">
+    /// What was asked for, when this returns null; <see langword="default"/> otherwise.
+    /// </param>
+    /// <returns>The refusal to print, or null when the request stands.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="arguments"/> is null.</exception>
+    /// <remarks>
+    /// <para>
+    /// <b>Reading the arguments is separated from acting on them, and every case below is a test's
+    /// to hand over.</b> <c>../CLAUDE.md</c> § Shell records the seam and why: an argument path
+    /// reachable only by starting a run is a path nothing checks, and each of the defects that
+    /// reached a push in this project lived in exactly that gap. So this returns a value rather
+    /// than printing one, and <see cref="Run"/> is left with nothing to decide.
+    /// </para>
+    /// <para>
+    /// <b>Two arguments are refused rather than guessed at.</b> A second argument could name the
+    /// last exponent, with the first left at its default, or the first with the last left at its -
+    /// and the two readings differ by ten decades of cost. The schedule is taken as a pair or not
+    /// at all, so that no invocation quietly means something other than what it looks like.
+    /// </para>
+    /// </remarks>
+    public static string? Interpret(string[] arguments, out SurvivorRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+
+        request = default;
+
+        if (arguments.Length is 2 or > 3)
+        {
+            return "survivors takes the order of zeta, and then both ends of the schedule or " +
+                "neither: 'survivors', 'survivors 3', or 'survivors 3 2 12'. One exponent alone " +
+                "would leave it guessing which end of the schedule you meant.";
+        }
+
+        int order = DefaultOrder;
+        int first = DefaultFirstExponent;
+        int last = DefaultLastExponent;
+        string? unreadable = null;
+
+        if (arguments.Length > 0 && !Whole(arguments[0], "an order", "survivors 3", out order, ref unreadable))
+        {
+            return unreadable;
+        }
+
+        if (arguments.Length == 3 &&
+            (!Whole(arguments[1], "an exponent", "survivors 3 2 12", out first, ref unreadable) ||
+             !Whole(arguments[2], "an exponent", "survivors 3 2 12", out last, ref unreadable)))
+        {
+            return unreadable;
+        }
+
+        string? refusal = RefuseOrder(order) ?? RefuseSchedule(first, last);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
+
+        request = new SurvivorRequest(order, first, last);
+        return null;
     }
 
     /// <summary>The reason this order will not be run, or null when it will.</summary>
@@ -178,6 +273,50 @@ internal static class SurvivorRun
                 $"Refusing order {order}: this command runs no higher than {MaxOrder}. Section 1's " +
                 $"positive controls stop there, so nothing above it can be checked against a known " +
                 $"answer, and an unchecked exhibit is not worth the wait.")
+            : null;
+    }
+
+    /// <summary>The reason this schedule will not be run, or null when it will.</summary>
+    /// <param name="firstExponent">The first target's exponent, as <c>10^-firstExponent</c>.</param>
+    /// <param name="lastExponent">The last target's exponent, as <c>10^-lastExponent</c>.</param>
+    /// <returns>The refusal, or null.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Shape only. What a schedule costs is <see cref="Refuse"/>'s question and cannot be
+    /// answered here</b>, because the estimate is priced off the enclosures a run <i>realises</i>
+    /// and not off the targets it was asked for - and the two differ by however far the providers
+    /// overshoot. So there is no ceiling on the last exponent to match <c>target</c>'s: a deep
+    /// schedule is refused for what it would cost, once that is known, rather than for being deep.
+    /// </para>
+    /// <para>
+    /// <b>Unlike <c>target</c>, a single-column schedule is allowed.</b> That command refuses one
+    /// because its whole output is a trend across columns; this one's output is a survivor set,
+    /// which one enclosure already produces - and a run whose providers realise the same error
+    /// twice collapses to a single distinct enclosure anyway, so the path is not a new one.
+    /// </para>
+    /// <para>
+    /// A pure function of the two arguments, held against tests without a run behind it - the same
+    /// seam <see cref="RefuseOrder"/> and <see cref="Refuse"/> use, for the same reason.
+    /// </para>
+    /// </remarks>
+    public static string? RefuseSchedule(int firstExponent, int lastExponent)
+    {
+        if (firstExponent < MinExponent)
+        {
+            return string.Create(CultureInfo.InvariantCulture,
+                $"The schedule's exponents must be at least {MinExponent}, and the first one is " +
+                $"{firstExponent}. An exponent at or below zero names a target of 1 or looser, which " +
+                $"is not a precision: Q is derived as floor(eps^(-1/2)) and every survivor is priced " +
+                $"against 6*eps*q^2/pi^2, and both read the exponent as a decimal place. The last " +
+                $"exponent is covered by the same floor, since it may not precede the first.");
+        }
+
+        return lastExponent < firstExponent
+            ? string.Create(CultureInfo.InvariantCulture,
+                $"The schedule 1e-{firstExponent} .. 1e-{lastExponent} loosens. The last exponent must be " +
+                $"at or after the first, since the exponents grow as the targets tighten. Refused " +
+                $"here rather than by TargetSchedule.Decades, whose message would name its own " +
+                $"parameters instead of this experiment's arguments.")
             : null;
     }
 
@@ -233,8 +372,30 @@ internal static class SurvivorRun
         return candidates.Numerator / candidates.Denominator;
     }
 
+    /// <summary>Reads one argument as a whole number, or explains why it is not one.</summary>
+    /// <param name="argument">The text as it arrived.</param>
+    /// <param name="noun">What the position names, as "an order" or "an exponent".</param>
+    /// <param name="example">An invocation that would have worked.</param>
+    /// <param name="value">The number, when this returns true.</param>
+    /// <param name="refusal">
+    /// Set to the explanation on a failure, and left alone on a success - so the first unreadable
+    /// argument is the one reported rather than the last one looked at.
+    /// </param>
+    /// <returns>True when the argument was a whole number.</returns>
+    private static bool Whole(string argument, string noun, string example, out int value, ref string? refusal)
+    {
+        if (int.TryParse(argument, NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+        {
+            return true;
+        }
+
+        refusal = string.Create(CultureInfo.InvariantCulture,
+            $"'{argument}' is not {noun}. Give a whole number, as in '{example}'.");
+        return false;
+    }
+
     private static ChartCaption Caption(
-        int order,
+        SurvivorRequest request,
         RatioRun run,
         IReadOnlyList<Approximation> enclosures,
         BigInteger bound)
@@ -242,26 +403,41 @@ internal static class SurvivorRun
         Approximation final = enclosures[^1];
 
         return new ChartCaption(
-            string.Create(CultureInfo.InvariantCulture, $"pi^{order} / zeta({order})"),
-            string.Create(CultureInfo.InvariantCulture, $"MachinPi, EulerMaclaurinZeta({order})"),
+            string.Create(CultureInfo.InvariantCulture, $"pi^{request.Order} / zeta({request.Order})"),
+            string.Create(CultureInfo.InvariantCulture, $"MachinPi, EulerMaclaurinZeta({request.Order})"),
             "DenominatorSweep",
             string.Create(CultureInfo.InvariantCulture,
-                $"1e-{FirstExponent} .. 1e-{LastExponent}, {run.Iterations.Count} targets, " +
+                $"{request.ScheduleLabel}, {run.Iterations.Count} targets, " +
                 $"{enclosures.Count} distinct enclosures"),
             string.Create(CultureInfo.InvariantCulture,
                 $"Q = {bound} = floor(eps^(-1/2)), eps = {Presentation.Magnitude(final.MaxError)} " +
                 $"the final enclosure's half-width"));
     }
 
-    private static void Preamble(TextWriter notes, int order, int columns)
+    /// <summary>Writes what this run is about to do, before it costs anything.</summary>
+    /// <param name="notes">Where the prose goes, which is stderr in a real run.</param>
+    /// <param name="request">What was asked for.</param>
+    /// <param name="columns">How many targets the schedule realised.</param>
+    /// <remarks>
+    /// Public on an internal class, unlike its siblings below, because the schedule line is a
+    /// claim that can now be wrong: it named two constants while the span was fixed and names
+    /// <paramref name="request"/> since the span became an argument. Handed a
+    /// <see cref="StringWriter"/> it is a pure function of its arguments, so a test holds it to
+    /// reporting the schedule that ran rather than the one that would have.
+    /// </remarks>
+    public static void Preamble(TextWriter notes, SurvivorRequest request, int columns)
     {
+        ArgumentNullException.ThrowIfNull(notes);
+
+        int order = request.Order;
+
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"pi^{order} / zeta({order}) - the survivor set, which is what section 2 step 6 says a run reports."));
         notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  providers   MachinPi, EulerMaclaurinZeta({order})   search  DenominatorSweep"));
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  schedule    1e-{FirstExponent} .. 1e-{LastExponent}, {columns} targets"));
+            $"  schedule    {request.ScheduleLabel}, {columns} targets"));
         notes.WriteLine();
         notes.WriteLine(order % 2 == 0
             ? "  an even order, so section 1 lists an exact answer for it and the survivor set can"

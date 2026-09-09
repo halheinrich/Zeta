@@ -116,8 +116,68 @@ in `q` instead of quadratic turns all three red.
 first point, which counts every rational under `Q` inside the *widest*
 enclosure — about `h/ε` candidates for a first target `h` and a last `ε`. One
 more decade of schedule is ten times the price, where `target`'s is about
-twice. So the schedule is a constant with `SurvivorRun.Refuse` checking the
-estimate against a measured budget before spending it.
+twice. So the schedule was a constant until somebody had measured what the
+constant cost, and `SurvivorRun.Refuse` checks the estimate against a measured
+budget before spending it.
+
+**Both ends of the schedule are arguments, and the first end is the cheap one.**
+The span moved to the caller once a scratchpad probe had shown it, rather than
+the providers or the search, to be what confined the exhibit — `halheinrich/Math#64`
+leg 3. The estimate is `h*Q²`, so a decade off the last end multiplies `Q²` by
+ten while a decade off the first end divides `h` by whatever the providers' steps
+land on — not a decade and not a constant, since `h` is *realised* rather than
+requested and these providers halve. Measured here in Release at order 3, first
+ends of 2, 3, 4 and 5 realise `h` of `2⁻⁸`, `2⁻¹⁰`, `2⁻¹⁵` and `2⁻¹⁷`: four,
+then thirty-two, then four again, about eight to the decade on average.
+
+The frontier that follows, all measured on this bench in Release at order 3:
+
+| schedule          | Q         | opening step | wall      | µs/cand |
+| ----------------- | --------- | ------------ | --------- | ------- |
+| `1e-2 .. 1e-8`    | 11,585    | ~1.0M        | 3 s       |         |
+| `1e-2 .. 1e-9`    | 32,768    | 4,227,072    | 20 s      | 4.6     |
+| `1e-2 .. 1e-10`   | 131,072   | 67,239,936   | *refused* |         |
+| `1e-3 .. 1e-10`   | 131,072   | 16,908,288   | 78 s      | 4.6     |
+| `1e-3 .. 1e-11`   | 741,455   | 537,612,077  | *refused* |         |
+| `1e-4 .. 1e-11`   | 741,455   | 17,518,661   | 167 s     | 9.5     |
+| `1e-5 .. 1e-11`   | 741,455   | 4,935,756    | 76 s      | 15.4    |
+| `1e-11 .. 1e-11`  | 741,455   | 741,455      | 15 s      | 19.7    |
+| `1e-12 .. 1e-12`  | 4,194,304 | 4,194,305    | 47 s      | 11.2    |
+
+So `1e-2 .. 1e-9` is the deepest the budget admits from the *default* first end,
+and starting later buys the refused decade back. The default is unchanged,
+because a deeper one is a separate judgement about what a first-time reader
+should wait for.
+
+**`Budget` counts candidates, and a candidate is not a fixed price.** The last
+column above is the measurement: per-candidate cost runs from 4.6 µs at
+`Q = 32,768` to about 20 µs at `Q = 741,455`, because the per-candidate work is
+a gcd and an exact containment test whose operands grow with the denominator. So
+sixty million candidates is a few seconds' worth at the shallow end and a long
+wait at the deep end, and the budget bounds the count rather than the wait. The
+single-column rows are what establish this: they drive the opening step down to
+`Q` itself, so what they time is very nearly the per-candidate cost alone — and
+they also show the run's own refinement and sweeps to be seconds, not the hidden
+cost they might have been.
+
+`1e-6 .. 1e-12` is the concrete case: the guard admits it, and it had not
+finished after twenty minutes here, when it was stopped. That is a lower bound
+rather than a measurement of the run. Whether the budget should be a time rather
+than a count, or should scale with `Q`, is `halheinrich/Math#64` leg 3's to rule
+on; it is not weakened here, and this change is what made it reachable by
+argument at all.
+
+**`SurvivorRun.RefuseSchedule` guards shape and nothing else**, and has no
+counterpart to `target`'s `MaxLastExponent`: what a schedule costs is priced off
+the enclosures a run *realises*, which the argument cannot see, so depth is
+refused for its cost by `Refuse` and never for being depth. It does refuse an
+exponent below 1 — `Q = floor(ε^(-1/2))` and the null `6εq²/π²` both read the
+exponent as a decimal place, and a negative one does not even print — where
+`TargetSchedule.Decades` accepts any sign and says so. That is the report's
+limit rather than the schedule's, which is why the floor is at the command edge.
+Unlike `target`, a single-column schedule is allowed: that command's whole
+output is a trend across columns, and this one's is a survivor set that one
+enclosure already produces.
 
 ### Presentation lives here, not in the library
 
