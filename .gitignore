@@ -32,6 +32,20 @@ test-output.txt
 # Use `git add -f` if one of these ever is meant to be kept.
 /survivors*.svg
 
+# The same, for a redirect named after the run rather than after the command.
+# The umbrella's INSTRUCTIONS.md notes that its own suggested invocation writes
+# a `deep*.svg`, which the line above does not match - it is anchored AND
+# prefixed, and that prefix is `survivors`. Named here on the same terms rather
+# than by widening the line above to `*.svg`, for the reason that line already
+# gives: a blanket pattern would swallow an exhibit somebody meant to commit.
+#
+# Note that `survivors-deep_*.svg`, which is what this checkout actually holds,
+# was already covered - it starts with `survivors`. So this closes a shape the
+# instructions describe rather than one the tree has, which is worth saying so
+# that a reader who greps for a dirty file and finds none does not conclude the
+# line is dead.
+/deep*.svg
+
 # NuGet packages
 *.nupkg
 *.snupkg
