@@ -253,6 +253,94 @@ public sealed class SurvivorReportTests
             () => SurvivorReport.Of([At(BigRational.FromInteger(6), 1, 2)], 10, 0));
     }
 
+    // ---------- the null ----------
+
+    [Fact]
+    public void ExpectedSurvivors_IsSixOverPiSquaredForAUnitIntervalAtDenominatorOne()
+    {
+        // 6*eps*q^2/pi^2 with eps = 1 and q = 1 is 6/pi^2 = 0.60792710185...
+        Approximation expected = SurvivorReport.ExpectedSurvivors(BigRational.One, 1);
+
+        Assert.True(expected.Value > new BigRational(6079271, 10000000));
+        Assert.True(expected.Value < new BigRational(6079272, 10000000));
+        Assert.Equal("0.61", Presentation.Roughly(expected.Value));
+
+        // Bracketed rather than compared against a decimal literal, because the result is an
+        // enclosure and a narrow one: pi is pinned to 1e-30 before it is squared, so a seven-digit
+        // literal is nowhere near inside it. What is asserted is that the figure carries a proven
+        // bound like every other quantity here rather than arriving as a hard-coded 0.61.
+        Assert.False(expected.IsExact);
+        Assert.True(expected.MaxError < new BigRational(BigInteger.One, BigInteger.Pow(10, 25)));
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(5)]
+    [InlineData(15)]
+    public void ExpectedSurvivors_IsTheSameAtEveryPrecisionOnceTheBoundIsDerived(int decades)
+    {
+        // The load-bearing claim, and it is an identity rather than a measurement. Q is derived as
+        // eps^(-1/2), so eps*Q^2 is 1 and 6/pi^2 is all that survives. Running deeper therefore
+        // does not thin the spurious survivors - it only gives them larger denominators, which is
+        // why a bare count is not evidence however impressive the collapse that produced it.
+        BigRational error = new(BigInteger.One, BigInteger.Pow(10, 2 * decades));
+        BigInteger bound = BigInteger.Pow(10, decades);
+
+        Assert.Equal(
+            SurvivorReport.ExpectedSurvivors(BigRational.One, 1).Value,
+            SurvivorReport.ExpectedSurvivors(error, bound).Value);
+    }
+
+    [Fact]
+    public void ExpectedSurvivors_GrowsWithTheSquareOfTheDenominator()
+    {
+        BigRational error = new(BigInteger.One, BigInteger.Pow(10, 8));
+
+        BigRational one = SurvivorReport.ExpectedSurvivors(error, 500).Value;
+        BigRational four = SurvivorReport.ExpectedSurvivors(error, 1000).Value;
+
+        // Exact: only pi is enclosed, and it is the same enclosure in both.
+        Assert.Equal(one * BigRational.FromInteger(4), four);
+    }
+
+    [Fact]
+    public void ExpectedSurvivors_IsZeroWhereNothingCouldSurvive()
+    {
+        Assert.Equal(BigRational.Zero, SurvivorReport.ExpectedSurvivors(BigRational.Zero, 11585).Value);
+        Assert.Equal(BigRational.Zero, SurvivorReport.ExpectedSurvivors(BigRational.One, 0).Value);
+    }
+
+    [Fact]
+    public void ExpectedSurvivors_RefusesANegativeHalfWidthOrDenominator()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => SurvivorReport.ExpectedSurvivors(BigRational.MinusOne, 10));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => SurvivorReport.ExpectedSurvivors(BigRational.One, -1));
+    }
+
+    [Fact]
+    public void ExpectedAt_PricesAgainstTheFinalHalfWidthAndNotTheFirst()
+    {
+        // The whole point of the figure is that it describes the run that happened. Pricing
+        // against the widest enclosure would overstate the null by the factor the run narrowed by,
+        // and would make every survivor look unremarkable.
+        SurvivorReport report = SurvivorReport.Of(
+            [At(BigRational.FromInteger(6), 1, 2), At(BigRational.FromInteger(6), 1, 4)], 2, Cap);
+
+        Assert.Equal(SurvivorReport.ExpectedSurvivors(new BigRational(1, 4), 7).Value, report.ExpectedAt(7).Value);
+        Assert.NotEqual(SurvivorReport.ExpectedSurvivors(new BigRational(1, 2), 7).Value, report.ExpectedAt(7).Value);
+    }
+
+    [Fact]
+    public void ExpectedUnderBound_PricesTheWholeBound()
+    {
+        SurvivorReport report = SurvivorReport.Of(
+            [At(BigRational.FromInteger(6), 1, 4)], 2, Cap);
+
+        Assert.Equal(report.ExpectedAt(report.DenominatorBound).Value, report.ExpectedUnderBound.Value);
+    }
+
     // ---------- the command's own refusals, which are pure functions ----------
 
     [Theory]
@@ -332,6 +420,12 @@ public sealed class SurvivorReportTests
         Assert.Equal(
             2 + report.Tracked.Count,
             parsed.Descendants().Count(node => node.Name.LocalName == "polyline"));
+
+        // The null rides on the chart, not only in the terminal. A chart travels away from the
+        // run that made it, and a survivor count with no null beside it cannot be read.
+        string drawn = document.ToString();
+        Assert.Contains("6/1 (" + Presentation.Roughly(report.ExpectedAt(1).Value) + ")", drawn, StringComparison.Ordinal);
+        Assert.Contains("at every precision", drawn, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -32,6 +32,8 @@ namespace HalHeinrich.Numerics.Experiments;
 /// </remarks>
 internal static class Presentation
 {
+    private static readonly BigRational Ten = BigRational.FromInteger(10);
+
     /// <summary>Renders an exact rational to a fixed number of decimal places, truncated.</summary>
     public static string ToDecimal(BigRational value, int places)
     {
@@ -57,6 +59,76 @@ internal static class Presentation
         value.Sign <= 0
             ? double.NegativeInfinity
             : BigInteger.Log10(value.Numerator) - BigInteger.Log10(value.Denominator);
+
+    /// <summary>Renders a non-negative rational to two significant figures, readably.</summary>
+    /// <param name="value">The value. Negative is refused; nothing here reports a signed quantity.</param>
+    /// <returns>A plain decimal from <c>0.001</c> to <c>990</c>, and scientific notation outside.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is negative.</exception>
+    /// <remarks>
+    /// <para>
+    /// <b>Beside <see cref="Magnitude"/> rather than instead of it, because the two are read
+    /// differently.</b> A propagated error bound is compared with another bound, and
+    /// <c>1e-12.04</c> against <c>1e-8.13</c> is the fastest way to see four decades. An expected
+    /// count is compared with <i>one</i>, and <c>1e-0.39</c> asks a reader to exponentiate in
+    /// their head before they can tell noise from a finding. Every figure this renders is meant to
+    /// be weighed against 1.
+    /// </para>
+    /// <para>
+    /// The exponent is found from <see cref="DecimalExponent"/> and then <b>corrected exactly</b>,
+    /// by comparing the value against powers of ten as rationals. The estimate is a
+    /// <see cref="double"/> and is off by one near a decade boundary, which would print
+    /// <c>10e-9</c> where <c>1.0e-8</c> was meant - a cosmetic fault, but one that costs nothing
+    /// to remove and would otherwise appear only on the values a reader is squinting hardest at.
+    /// </para>
+    /// <para>
+    /// Two figures, rounded rather than truncated: this is a statistical estimate whose own
+    /// modelling error dwarfs its third digit, so printing more would claim precision the quantity
+    /// does not have, and truncating would report 0.406 as 0.40 where 0.41 is nearer.
+    /// </para>
+    /// </remarks>
+    public static string Roughly(BigRational value)
+    {
+        if (value.Sign < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value), value, "Nothing here reports a negative quantity.");
+        }
+
+        if (value.IsZero)
+        {
+            return "0";
+        }
+
+        int exponent = (int)Math.Floor(DecimalExponent(value));
+
+        // The estimate is a double and can land either side of a decade boundary. These two loops
+        // move it back onto the exact one; each runs at most once, and neither depends on how
+        // accurate the estimate was.
+        while (BigRational.Pow(Ten, exponent) > value)
+        {
+            exponent--;
+        }
+
+        while (BigRational.Pow(Ten, exponent + 1) <= value)
+        {
+            exponent++;
+        }
+
+        BigInteger figures = BigRational.Round(
+            value / BigRational.Pow(Ten, exponent - 1), MidpointRounding.AwayFromZero);
+
+        // 9.96 rounds to 10.0, which is three digits and a decade higher than the exponent says.
+        if (figures == 100)
+        {
+            figures = 10;
+            exponent++;
+        }
+
+        string digits = figures.ToString(CultureInfo.InvariantCulture);
+
+        return exponent is >= -3 and <= 2
+            ? Positioned(digits, exponent - 1)
+            : string.Create(CultureInfo.InvariantCulture, $"{digits[0]}.{digits[1]}e{exponent}");
+    }
 
     /// <summary>Renders a magnitude as a signed decimal exponent, e.g. <c>1e-12.04</c>.</summary>
     public static string Magnitude(BigRational value) =>
@@ -179,5 +251,21 @@ internal static class Presentation
         // printed under a column headed Pow reads as the power being sharper than its base.
         double cost = DecimalExponent(enclosure.Power.MaxError) - DecimalExponent(enclosure.PowerBase.MaxError);
         return string.Create(CultureInfo.InvariantCulture, $"{cost:F2}");
+    }
+
+    /// <summary>Places the decimal point so that <paramref name="digits"/> scale by <c>10^shift</c>.</summary>
+    /// <param name="digits">The significant digits, with no point.</param>
+    /// <param name="shift">The power of ten those digits carry.</param>
+    /// <returns>The plain decimal rendering.</returns>
+    private static string Positioned(string digits, int shift)
+    {
+        if (shift >= 0)
+        {
+            return digits + new string('0', shift);
+        }
+
+        return -shift < digits.Length
+            ? digits.Insert(digits.Length + shift, ".")
+            : "0." + new string('0', -shift - digits.Length) + digits;
     }
 }

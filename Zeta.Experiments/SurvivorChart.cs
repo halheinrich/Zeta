@@ -81,7 +81,7 @@ internal static class SurvivorChart
         ArgumentNullException.ThrowIfNull(caption);
 
         double legend = 18 + (report.Tracked.Count * 15);
-        double collapseTop = 202;
+        double collapseTop = 232;
         double distanceTop = collapseTop + PanelHeight + 84;
         double height = distanceTop + PanelHeight + 62 + legend + 96;
 
@@ -103,21 +103,35 @@ internal static class SurvivorChart
         Svg.Text(svg, PlotLeft, 73, "schedule   " + caption.Schedule, "body");
         Svg.Text(svg, PlotLeft, 90, "bound      " + caption.BoundDerivation, "body");
 
+        // Each survivor carries its own null. The count alone cannot be read - under a bound
+        // derived as eps^(-1/2) a generic target leaves 6/pi^2 survivors at every precision - and
+        // a chart travels away from the terminal that could have explained that.
         string survivors = report.SurvivorCount == 0
             ? "empty - every rational of denominator at or below the bound is refuted"
-            : string.Join("  ", report.Survivors.Select(Label)) +
+            : string.Join("   ", report.Survivors.Select(survivor => string.Create(
+                CultureInfo.InvariantCulture,
+                $"{Label(survivor)} ({Presentation.Roughly(report.ExpectedAt(survivor.Denominator).Value)})"))) +
                 (report.SurvivorCount > report.Survivors.Count
                     ? string.Create(CultureInfo.InvariantCulture,
-                        $"  ... and {report.SurvivorCount - report.Survivors.Count} more")
+                        $"   ... and {report.SurvivorCount - report.Survivors.Count} more")
                     : string.Empty);
 
         Svg.Text(svg, PlotLeft, 114, string.Create(CultureInfo.InvariantCulture,
             $"SURVIVOR SET - {report.SurvivorCount:N0}"), "h2");
         Svg.Text(svg, PlotLeft, 132, survivors, "body");
 
-        Svg.Text(svg, PlotLeft, 152, string.Create(CultureInfo.InvariantCulture,
+        Svg.Text(svg, PlotLeft, 150, string.Create(CultureInfo.InvariantCulture,
             $"Of every rational whose denominator is at most {report.DenominatorBound}, these and only " +
             $"these are consistent with the enclosures."), "small");
+
+        Svg.Text(svg, PlotLeft, 166, string.Create(CultureInfo.InvariantCulture,
+            $"In brackets, the null: how many survivors of that denominator a generic target of this " +
+            $"precision leaves by chance, 6*eps*q^2/pi^2."), "small");
+
+        Svg.Text(svg, PlotLeft, 182, string.Create(CultureInfo.InvariantCulture,
+            $"Under the whole bound that is {Presentation.Roughly(report.ExpectedUnderBound.Value)} - " +
+            $"and it is that at every precision, since Q = eps^(-1/2) cancels the eps. Near 1 is noise; " +
+            $"a real answer prices far below."), "small");
     }
 
     private static void Collapse(TextWriter svg, SurvivorReport report, double top)

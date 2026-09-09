@@ -176,4 +176,52 @@ public sealed class PresentationTests
 
         Assert.Equal("0.2500...", Presentation.Earned(enclosure, 4));
     }
+
+    // ---------- Roughly: the null, rendered to be weighed against one ----------
+
+    [Fact]
+    public void Roughly_RoundsTheSecondFigureRatherThanTruncatingIt()
+    {
+        // The case that earned the method. Truncating 0.4056 gives 0.40, which is further from the
+        // value than 0.41 is, and this figure exists to be compared with 1 by eye.
+        Assert.Equal("0.41", Presentation.Roughly(new BigRational(4056, 10000)));
+    }
+
+    [Theory]
+    [InlineData(6079271, 10000000, "0.61")]     // 6/pi^2, the null under a derived bound
+    [InlineData(1, 1, "1.0")]
+    [InlineData(10, 1, "10")]
+    [InlineData(100, 1, "100")]
+    [InlineData(1, 1000, "0.0010")]             // the last exponent rendered plainly
+    [InlineData(45, 10000000000, "4.5e-9")]     // an even order's 6/1 at this bench's precision
+    [InlineData(1, 10000, "1.0e-4")]            // the first exponent rendered scientifically
+    public void Roughly_SwitchesToScientificOnlyOutsideTheRangeAReaderReadsPlainly(
+        int numerator, long denominator, string expected) =>
+        Assert.Equal(expected, Presentation.Roughly(new BigRational(numerator, denominator)));
+
+    [Fact]
+    public void Roughly_CarriesAMantissaThatRoundsUpToTenIntoTheExponent()
+    {
+        // 9.96 rounds to 10.0, which is three digits and a decade above what the exponent says.
+        // Left alone it renders as "100" or "1.0e1" with the wrong magnitude entirely.
+        Assert.Equal("10", Presentation.Roughly(new BigRational(996, 100)));
+        Assert.Equal("1.0e4", Presentation.Roughly(new BigRational(99960, 10)));
+    }
+
+    [Fact]
+    public void Roughly_IsExactAtMagnitudesTheDoubleEstimateCannotPlace()
+    {
+        // The exponent is estimated with a double and then corrected against exact powers of ten.
+        // At a decade boundary the estimate lands either side, and an uncorrected one prints
+        // "10e-31" where "1.0e-30" was meant.
+        Assert.Equal("1.0e-30", Presentation.Roughly(new BigRational(BigInteger.One, BigInteger.Pow(10, 30))));
+        Assert.Equal("1.0e40", Presentation.Roughly(BigRational.FromInteger(BigInteger.Pow(10, 40))));
+    }
+
+    [Fact]
+    public void Roughly_RendersZeroAsZeroAndRefusesANegative()
+    {
+        Assert.Equal("0", Presentation.Roughly(BigRational.Zero));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Presentation.Roughly(BigRational.MinusOne));
+    }
 }

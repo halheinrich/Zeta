@@ -41,6 +41,18 @@ internal sealed class SurvivorReport
     /// </remarks>
     public const int SurvivorsShown = 32;
 
+    /// <summary>How tightly pi is pinned before it is squared for the null.</summary>
+    /// <remarks>
+    /// Far tighter than the two figures anything prints, and cheap: the estimate it divides is a
+    /// statistical one whose modelling error is enormous beside this, so what this buys is not
+    /// accuracy but the absence of a hidden constant. The alternative was writing <c>6/pi^2</c> in
+    /// as a literal, which is the thing <c>RealConstants</c> exists to stop.
+    /// </remarks>
+    private static readonly BigRational PiTolerance = new(BigInteger.One, BigInteger.Pow(10, 30));
+
+    /// <summary>Pi squared, enclosed, so the null below is an interval and not a decimal.</summary>
+    private static readonly Approximation PiSquared = SquarePi();
+
     private const string ExactEnclosureMessage =
         "An exact enclosure has no generic sweep depth to derive a bound from. A sweep against an " +
         "exact value halts at that value's own denominator rather than at eps^(-1/2), so the " +
@@ -122,6 +134,39 @@ internal sealed class SurvivorReport
 
     /// <summary>Gets the largest denominator considered.</summary>
     public BigInteger DenominatorBound { get; }
+
+    /// <summary>
+    /// Gets how many survivors a generic target of this precision would leave under the whole
+    /// bound, by chance alone.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is <c>6/pi^2</c>, about 0.61, and it is 0.61 at every precision.</b>
+    /// <see cref="DerivedBound"/> takes <c>Q = floor(eps^(-1/2))</c>, so the <c>eps</c> and the
+    /// <c>Q^2</c> in the estimate cancel and nothing is left that depends on how deep the run
+    /// went. Running deeper does not thin the spurious survivors; it only gives them larger
+    /// denominators.
+    /// </para>
+    /// <para>
+    /// Which is why <see cref="SurvivorCount"/> alone cannot be read as evidence, however
+    /// impressive the collapse that produced it. Two survivors is a one-in-eight event under this
+    /// null, and a reader given only the count cannot tell that from a discovery.
+    /// </para>
+    /// </remarks>
+    public Approximation ExpectedUnderBound => ExpectedAt(DenominatorBound);
+
+    /// <summary>How many survivors that simple a generic target of this precision would leave by chance.</summary>
+    /// <param name="denominator">The denominator to price. Non-negative.</param>
+    /// <returns>The expected count, enclosed.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="denominator"/> is negative.</exception>
+    /// <remarks>
+    /// An instance member rather than a second argument on <see cref="ExpectedSurvivors"/>,
+    /// because the <c>eps</c> is not the caller's to choose: it is this run's final half-width,
+    /// and pricing a survivor against any other precision reports a number about a run that did
+    /// not happen.
+    /// </remarks>
+    public Approximation ExpectedAt(BigInteger denominator) =>
+        ExpectedSurvivors(enclosures[^1].MaxError, denominator);
 
     /// <summary>The enclosures of the unknown a run produced: one per iteration, in order.</summary>
     /// <param name="run">The completed run.</param>
@@ -213,6 +258,67 @@ internal sealed class SurvivorReport
         BigInteger denominator = enclosure.MaxError.Denominator;
 
         return IntegerMath.Sqrt(denominator * numerator) / numerator;
+    }
+
+    /// <summary>
+    /// The expected number of rationals of denominator at or below <paramref name="denominator"/>
+    /// that an interval of half-width <paramref name="error"/> holds, for a target with no
+    /// arithmetic reason to sit near a simple rational.
+    /// </summary>
+    /// <param name="error">The enclosure's half-width. Non-negative.</param>
+    /// <param name="denominator">The denominator to price. Non-negative.</param>
+    /// <returns><c>6 * error * denominator^2 / pi^2</c>, enclosed.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Either argument is negative.</exception>
+    /// <remarks>
+    /// <para>
+    /// <b>The null the survivor set has to beat, and it is the number that turns § 1's caveat from
+    /// a disclaimer into a measurement.</b> "A short survivor set poses a conjecture" is true and
+    /// says nothing about how short is short. This says it: a count near this figure is what a
+    /// target with no rational relation produces anyway.
+    /// </para>
+    /// <para>
+    /// Where it comes from. There are about <c>(3/pi^2) * q^2</c> rationals of denominator at or
+    /// below <c>q</c> per unit interval - the density of coprime pairs is <c>6/pi^2</c> and half
+    /// of them are the reduced fractions - and an enclosure of half-width <c>eps</c> is an
+    /// interval of length <c>2*eps</c>. The product is <c>6*eps*q^2/pi^2</c>.
+    /// </para>
+    /// <para>
+    /// <b>It is an upper bound on what this run's null should be</b>, and deliberately the
+    /// conservative direction: it prices one enclosure, where a run intersects several, so the
+    /// real chance of a spurious survivor is lower and a survivor that looks unremarkable against
+    /// this figure is no better than it looks. Measured at the umbrella over 40 generic targets
+    /// near 25.79 at each of three precisions, the mean counts were 0.53, 0.50 and 0.53 against
+    /// this estimate's 0.61 - flat across four orders of magnitude, as the cancellation predicts.
+    /// </para>
+    /// <para>
+    /// Pi is taken from <see cref="MachinPi"/> and squared rather than written in as a decimal, so
+    /// the result is an enclosure whose bound is proven like every other bound here. It is the one
+    /// figure this command reports that is not a claim about the target - it is a claim about
+    /// targets in general, which is exactly what a null is.
+    /// </para>
+    /// </remarks>
+    public static Approximation ExpectedSurvivors(BigRational error, BigInteger denominator)
+    {
+        if (error.Sign < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(error), error, "A half-width is a distance and cannot be negative.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(denominator);
+
+        BigRational span = BigRational.FromInteger(denominator);
+        BigRational counted = BigRational.FromInteger(6) * error * span * span;
+
+        return Approximation.Divide(Approximation.Exact(counted), PiSquared);
+    }
+
+    /// <summary>Pi, pinned and squared, through the provider rather than a literal.</summary>
+    private static Approximation SquarePi()
+    {
+        IRealConstant pi = new MachinPi();
+
+        return pi.ApproximateTo(PiTolerance).Pow(2);
     }
 
     /// <summary>Intersects the enclosures one at a time, counting what is left after each.</summary>

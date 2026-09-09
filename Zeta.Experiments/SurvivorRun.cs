@@ -292,6 +292,36 @@ internal static class SurvivorRun
         notes.WriteLine("intersecting, one enclosure at a time:");
     }
 
+    /// <summary>What a generic target of this precision would have left standing anyway.</summary>
+    /// <remarks>
+    /// <b>Printed because a count on its own cannot be read.</b> § 1 already requires the caveat
+    /// that numerics refute and bound and do not establish; this is the same rule carried one step
+    /// further, from a disclaimer to a figure. The contrast it makes visible is the exhibit's real
+    /// content: an order-2 control's <c>6/1</c> prices at about 4.5e-9, and a survivor of
+    /// five-figure denominator prices near one half.
+    /// </remarks>
+    private static void Null(TextWriter notes, SurvivorReport report)
+    {
+        notes.WriteLine();
+        notes.WriteLine("  That second column is the null: how many survivors of that denominator a");
+        notes.WriteLine("  GENERIC target of this precision leaves by chance - 6*eps*q^2/pi^2, from");
+        notes.WriteLine("  this run's own final half-width. Near 1 is noise. A real answer prices far");
+        notes.WriteLine("  below it, because its denominator is small: an even order's 6/1 comes out");
+        notes.WriteLine("  around 4.5e-9 at this precision, which is what a finding looks like from");
+        notes.WriteLine("  the inside.");
+        notes.WriteLine();
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  Under the whole bound the figure is {Presentation.Roughly(report.ExpectedUnderBound.Value)}, " +
+            $"and it is that at EVERY precision:"));
+        notes.WriteLine("  Q is derived as eps^(-1/2), so the eps and the Q^2 cancel and 6/pi^2 is all");
+        notes.WriteLine("  that is left. Running deeper does not thin the spurious survivors - it only");
+        notes.WriteLine("  gives them larger denominators. So no depth of run makes a bare count into");
+        notes.WriteLine("  evidence.");
+        notes.WriteLine();
+        notes.WriteLine("  The estimate prices one enclosure where a run intersects several, so it is");
+        notes.WriteLine("  an upper bound on the null and errs towards calling a survivor unremarkable.");
+    }
+
     private static void Epilogue(TextWriter notes, SurvivorReport report, int order, double seconds)
     {
         notes.WriteLine();
@@ -317,15 +347,22 @@ internal static class SurvivorRun
                 $"  {report.SurvivorCount:N0} {(one ? "is" : "are")} consistent with the enclosures - " +
                 $"{(one ? "this one, and no other" : "these, and no others")}:"));
             notes.WriteLine();
-            notes.WriteLine("      " + string.Join("  ", report.Survivors.Select(
-                survivor => string.Create(CultureInfo.InvariantCulture,
-                    $"{survivor.Numerator}/{survivor.Denominator}"))));
+            notes.WriteLine("      survivor                        expected by chance at its own q");
+
+            foreach (BigRational survivor in report.Survivors)
+            {
+                notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                    $"      {survivor.Numerator + "/" + survivor.Denominator,-30}  " +
+                    $"{Presentation.Roughly(report.ExpectedAt(survivor.Denominator).Value)}"));
+            }
 
             if (report.SurvivorCount > report.Survivors.Count)
             {
                 notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
                     $"      ... and {report.SurvivorCount - report.Survivors.Count:N0} more, not listed."));
             }
+
+            Null(notes, report);
         }
 
         notes.WriteLine();
