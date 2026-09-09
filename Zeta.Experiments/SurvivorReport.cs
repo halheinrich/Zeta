@@ -140,18 +140,11 @@ internal sealed class SurvivorReport
     /// bound, by chance alone.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <b>This is <c>6/pi^2</c>, about 0.61, and it is 0.61 at every precision.</b>
+    /// <c>6/pi^2</c>, about 0.61, and the same figure at every precision:
     /// <see cref="DerivedBound"/> takes <c>Q = floor(eps^(-1/2))</c>, so the <c>eps</c> and the
-    /// <c>Q^2</c> in the estimate cancel and nothing is left that depends on how deep the run
-    /// went. Running deeper does not thin the spurious survivors; it only gives them larger
-    /// denominators.
-    /// </para>
-    /// <para>
-    /// Which is why <see cref="SurvivorCount"/> alone cannot be read as evidence, however
-    /// impressive the collapse that produced it. Two survivors is a one-in-eight event under this
-    /// null, and a reader given only the count cannot tell that from a discovery.
-    /// </para>
+    /// <c>Q^2</c> cancel and nothing is left that depends on how deep the run went. What follows
+    /// from that about reading <see cref="SurvivorCount"/> is
+    /// <c>../SPEC-rational-ratio.md</c> § 1's and is not argued again here.
     /// </remarks>
     public Approximation ExpectedUnderBound => ExpectedAt(DenominatorBound);
 
@@ -271,30 +264,23 @@ internal sealed class SurvivorReport
     /// <exception cref="ArgumentOutOfRangeException">Either argument is negative.</exception>
     /// <remarks>
     /// <para>
-    /// <b>The null the survivor set has to beat, and it is the number that turns § 1's caveat from
-    /// a disclaimer into a measurement.</b> "A short survivor set poses a conjecture" is true and
-    /// says nothing about how short is short. This says it: a count near this figure is what a
-    /// target with no rational relation produces anyway.
+    /// <b>The null a survivor set is read against, ratified into
+    /// <c>../SPEC-rational-ratio.md</c> § 1 on 2026-09-08.</b> What the figure means, why the
+    /// count rather than the simplest survivor's denominator is the wrong thing to lead with, and
+    /// that it is an <i>upper</i> bound erring towards calling a survivor unremarkable, are all
+    /// stated there and not restated here. The measurement behind it - 40 generic targets at each
+    /// of three precisions - is in <c>../CASEBOOK.md</c>, which is where a measurement belongs.
     /// </para>
     /// <para>
-    /// Where it comes from. There are about <c>(3/pi^2) * q^2</c> rationals of denominator at or
-    /// below <c>q</c> per unit interval - the density of coprime pairs is <c>6/pi^2</c> and half
-    /// of them are the reduced fractions - and an enclosure of half-width <c>eps</c> is an
-    /// interval of length <c>2*eps</c>. The product is <c>6*eps*q^2/pi^2</c>.
+    /// What is local is the arithmetic. <paramref name="error"/> is a half-width rather than a
+    /// whole interval, so the factor of two in the interval's length is already folded into the
+    /// six; and pi is taken from <see cref="MachinPi"/> and squared rather than <c>6/pi^2</c>
+    /// being written in as a decimal, so the result is an enclosure carrying a proven bound like
+    /// every other value in this bench.
     /// </para>
     /// <para>
-    /// <b>It is an upper bound on what this run's null should be</b>, and deliberately the
-    /// conservative direction: it prices one enclosure, where a run intersects several, so the
-    /// real chance of a spurious survivor is lower and a survivor that looks unremarkable against
-    /// this figure is no better than it looks. Measured at the umbrella over 40 generic targets
-    /// near 25.79 at each of three precisions, the mean counts were 0.53, 0.50 and 0.53 against
-    /// this estimate's 0.61 - flat across four orders of magnitude, as the cancellation predicts.
-    /// </para>
-    /// <para>
-    /// Pi is taken from <see cref="MachinPi"/> and squared rather than written in as a decimal, so
-    /// the result is an enclosure whose bound is proven like every other bound here. It is the one
-    /// figure this command reports that is not a claim about the target - it is a claim about
-    /// targets in general, which is exactly what a null is.
+    /// It is the one figure this command reports that is not a claim about the target. It is a
+    /// claim about targets in general, which is exactly what a null is.
     /// </para>
     /// </remarks>
     public static Approximation ExpectedSurvivors(BigRational error, BigInteger denominator)

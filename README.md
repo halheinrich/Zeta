@@ -149,14 +149,12 @@ the depth a generic sweep would have reached, because a cap chosen by hand
 decides how impressive the collapse looks and nothing checks it.
 
 Each survivor is printed **with its null**: `6*ε*q²/π²`, how many rationals of
-that denominator a *generic* target of this precision leaves standing by
-chance. Near 1 is noise. π³/ζ(3)'s two survivors price at 0.41 and 0.49; the
-order-2 control's `6/1` prices at 4.5e-9, which is what an answer looks like
-from the inside. Under the whole bound the figure is **0.61 at every
-precision** — `Q = ε^(-1/2)` cancels the `ε`, so running deeper does not thin
-the spurious survivors, it only gives them larger denominators. A bare count
-is therefore not evidence however deep the run went, and § 1's refute-and-bound
-caveat becomes a number rather than a disclaimer.
+that denominator a *generic* target of this precision would leave standing by
+chance. In this run's output π³/ζ(3)'s two survivors price at 0.41 and 0.49,
+and the order-2 control's `6/1` at 4.5e-9. Why that figure rather than the
+count is what a survivor set is read against, and that it is an *upper* bound,
+is `SPEC-rational-ratio.md` § 1, ratified 2026-09-08; the command reports it
+because § 1 asks for it wherever a result is.
 
 It takes the order of ζ, defaulting to 2. An even order has an exact answer
 § 1 lists, so the set is checkable by eye; an odd one is the question. Two

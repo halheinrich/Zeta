@@ -92,37 +92,25 @@ quoted per *distinct* enclosure and the chart says so — which basis a count is
 quoted on is part of the count, as the ζ(2) walk's three readings already
 record.
 
-**Every survivor is printed with its null, and that is what makes the caveat a
-measurement.** "A short survivor set poses a conjecture" is true and says
-nothing about how short is short. `6*ε*q²/π²` says it: the expected number of
-rationals of denominator at or below `q` that an enclosure of half-width `ε`
-holds, for a target with no arithmetic reason to sit near a simple one. π is
-taken from `MachinPi` and squared rather than written in as a decimal, so the
-figure carries a proven bound like every other quantity here.
+**Every survivor is printed with its null**, per `../SPEC-rational-ratio.md`
+§ 1, which owns the rule as of its ratification on 2026-09-08 and states what
+the figure means, why the count is the wrong thing to lead with, and that it is
+an *upper* bound. None of that is restated here or in the code; the incident and
+the measurement behind it — 40 generic targets at each of three precisions —
+are in `../CASEBOOK.md`, which is where a measurement belongs.
 
-**Under the derived bound the null is `6/π²` at every precision**, because
-`Q = floor(ε^(-1/2))` cancels the `ε` against the `Q²`. Running deeper does not
-thin the spurious survivors — it only gives them larger denominators — so no
-depth of run turns a bare count into evidence. That identity is asserted rather
-than described: `ExpectedSurvivors_IsTheSameAtEveryPrecisionOnceTheBoundIsDerived`
-holds three precisions three, five and fifteen decades apart to the *same exact
-rational*.
+What this repository owns is the computation and its two local decisions.
+`SurvivorReport.ExpectedSurvivors` takes a **half-width** rather than a whole
+interval, so the factor of two in the interval's length is folded into the six;
+and π comes from `MachinPi` squared rather than `6/π²` written in as a decimal,
+so the figure carries a proven bound like every other value here.
 
-The discriminating quantity is therefore not the count but the simplest
-survivor's denominator against `Q`. π³/ζ(3)'s survivors price at 0.41 and 0.49,
-which is where noise lives; the order-2 control's `6/1` prices at 4.5e-9. That
-contrast is the exhibit's content. The estimate prices one enclosure where a
-run intersects several, so it is an **upper** bound on the null and errs
-towards calling a survivor unremarkable — the conservative direction, matching
-`SurvivorSearch`'s own rule that an overstatement of refutation is the error to
-lean against.
-
-Whether this belongs in `../SPEC-rational-ratio.md` § 1 is the user's
-ratification, not this repository's: it changes how a result is read. Until
-then it is reported here and argued in `SurvivorReport.ExpectedSurvivors`, with
-the umbrella's measurement — 40 generic targets near 25.79 at each of three
-precisions, mean counts 0.53, 0.50 and 0.53 against the predicted 0.61 — banked
-at umbrella `ed5e6c2`.
+**The cancellation is asserted, not described.**
+`ExpectedSurvivors_IsTheSameAtEveryPrecisionOnceTheBoundIsDerived` holds three
+precisions three, five and fifteen decades apart to the *same exact rational* —
+an identity rather than a measurement, since `DerivedBound` takes
+`Q = floor(ε^(-1/2))` and the `ε` cancels the `Q²`. Making the estimate linear
+in `q` instead of quadratic turns all three red.
 
 **The cost law is not `target`'s.** The expensive step is the collapse chart's
 first point, which counts every rational under `Q` inside the *widest*

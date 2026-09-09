@@ -279,10 +279,11 @@ public sealed class SurvivorReportTests
     [InlineData(15)]
     public void ExpectedSurvivors_IsTheSameAtEveryPrecisionOnceTheBoundIsDerived(int decades)
     {
-        // The load-bearing claim, and it is an identity rather than a measurement. Q is derived as
-        // eps^(-1/2), so eps*Q^2 is 1 and 6/pi^2 is all that survives. Running deeper therefore
-        // does not thin the spurious survivors - it only gives them larger denominators, which is
-        // why a bare count is not evidence however impressive the collapse that produced it.
+        // SPEC-rational-ratio.md § 1's cancellation, pinned as the identity it is rather than as
+        // a measurement: Q is derived as eps^(-1/2), so eps*Q^2 is 1 and 6/pi^2 is all that
+        // survives. What § 1 draws from that about reading a count is its own and is not repeated
+        // here. Three precisions fifteen decades apart, because an identity that held only near
+        // the bench's own working range would be a coincidence.
         BigRational error = new(BigInteger.One, BigInteger.Pow(10, 2 * decades));
         BigInteger bound = BigInteger.Pow(10, decades);
 

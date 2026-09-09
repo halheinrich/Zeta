@@ -294,11 +294,10 @@ internal static class SurvivorRun
 
     /// <summary>What a generic target of this precision would have left standing anyway.</summary>
     /// <remarks>
-    /// <b>Printed because a count on its own cannot be read.</b> § 1 already requires the caveat
-    /// that numerics refute and bound and do not establish; this is the same rule carried one step
-    /// further, from a disclaimer to a figure. The contrast it makes visible is the exhibit's real
-    /// content: an order-2 control's <c>6/1</c> prices at about 4.5e-9, and a survivor of
-    /// five-figure denominator prices near one half.
+    /// <b>Printed because <c>../SPEC-rational-ratio.md</c> § 1 asks for the figure beside every
+    /// survivor set</b>, on the same rule that has always required the refute-and-bound caveat
+    /// there. The prose below is that reporting; the rule it reports is § 1's and is not argued
+    /// again here.
     /// </remarks>
     private static void Null(TextWriter notes, SurvivorReport report)
     {

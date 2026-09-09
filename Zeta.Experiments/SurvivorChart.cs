@@ -103,9 +103,10 @@ internal static class SurvivorChart
         Svg.Text(svg, PlotLeft, 73, "schedule   " + caption.Schedule, "body");
         Svg.Text(svg, PlotLeft, 90, "bound      " + caption.BoundDerivation, "body");
 
-        // Each survivor carries its own null. The count alone cannot be read - under a bound
-        // derived as eps^(-1/2) a generic target leaves 6/pi^2 survivors at every precision - and
-        // a chart travels away from the terminal that could have explained that.
+        // Each survivor carries its own null, because the count alone cannot be read - the rule
+        // is ../SPEC-rational-ratio.md § 1's. On the chart rather than only in the terminal:
+        // § 1 asks for the figure wherever a result is reported, and a chart travels away from
+        // the run that made it.
         string survivors = report.SurvivorCount == 0
             ? "empty - every rational of denominator at or below the bound is refuted"
             : string.Join("   ", report.Survivors.Select(survivor => string.Create(
