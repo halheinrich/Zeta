@@ -113,35 +113,121 @@ internal static class SurvivorRun
     /// </remarks>
     public const int TrackedCap = 4;
 
-    /// <summary>The largest enumeration this command will pay for, over every prefix together.</summary>
+    /// <summary>How long this command will spend enumerating candidates before it refuses.</summary>
     /// <remarks>
     /// <para>
-    /// Measured on this bench rather than derived, exactly as <c>target</c>'s ceiling is: the
-    /// per-candidate cost is a greatest-common-divisor and one exact containment test against
-    /// numerators of a few hundred digits, which no formula sizes usefully. At order 2 the default
-    /// schedule's whole walk is a few million candidates and the command takes a few seconds.
+    /// <b>A time, because a count does not transfer between orders.</b> Measured on
+    /// <c>halheinrich/Math#64</c> at one schedule with only the order varying: 6.0, 11.7 and 33.3
+    /// microseconds a candidate at orders 3, 6 and 10 - monotone, and a factor of five and a half
+    /// across a range the exhibit is meant to run. So sixty million candidates, which this budget
+    /// replaces, was six minutes at order 3 and thirty-three at order 10 under one number that
+    /// claimed to mean the same thing at both. The price is flat in <c>Q</c> (3.5 to 6.9
+    /// microseconds across a 362-fold range) and rises with the <i>order</i>, because what an
+    /// exact <see cref="Approximation.Contains"/> cross-multiplies is the enclosure endpoint,
+    /// whose size grows with the order rather than with the candidate's denominator.
     /// </para>
     /// <para>
-    /// The refusal quotes the estimate rather than a rule, because the estimate is computable
-    /// before the money is spent - unlike a sweep's depth, which <c>target</c> cannot know in
-    /// advance and so guards with a hard-coded exponent instead.
+    /// Five minutes, which is the sixty million candidates this replaces expressed at the order-3
+    /// price they were measured at - so the schedules the exhibit already documents are admitted
+    /// and refused exactly as before, and what changes is the high orders, where a count was
+    /// admitting half-hour runs.
     /// </para>
     /// <para>
-    /// <b>This counts candidates, and a candidate is not a fixed price.</b> Measured at order 3
-    /// once the schedule became an argument: 4.6 microseconds each at <c>Q = 32,768</c>, about 20
-    /// at <c>Q = 741,455</c> - the gcd and the containment test work on operands that grow with
-    /// the denominator. So this number bounds the count and not the wait, and sixty million is a
-    /// few seconds at the shallow end of the schedules a caller can now ask for and a long sit at
-    /// the deep end. Whether it should be a time instead, or scale with <c>Q</c>, is
-    /// <c>halheinrich/Math#64</c> leg 3's to rule on; what changed here is only that the budget
-    /// became reachable by argument rather than by editing a constant.
+    /// <b>Not a wall-clock abort.</b> The prediction is made before the search and the search then
+    /// runs to completion, so a slow machine refuses runs a fast one admits and neither reports a
+    /// different answer. A timed abort would instead cut the walk short at whatever depth the
+    /// clock ran out at, which makes <c>Q</c> - and so the bound the run claims - a property of how
+    /// fast the machine was that day. <c>../AGENTS.md</c> § Exactness discipline: the refusal may
+    /// be machine-dependent, the result may not.
     /// </para>
     /// </remarks>
-    public const long Budget = 60_000_000;
+    public const int BudgetSeconds = 300;
+
+    /// <summary>About how much work the smaller of the two calibration walks aims to be.</summary>
+    /// <remarks>
+    /// <para>
+    /// Large enough that the clock is not the error - four thousand units is tens of milliseconds
+    /// at every price measured here, against a <see cref="Stopwatch"/> tick of a hundred
+    /// nanoseconds - and small enough to be lost in the run it prices. It is a target rather than
+    /// a count: <see cref="SampleBound"/> doubles a denominator bound until the size reaches it,
+    /// and that size is quadratic in the bound, so a sample may overshoot by up to a factor of
+    /// four.
+    /// </para>
+    /// <para>
+    /// The whole calibration is this walk twice - once discarded - plus one at
+    /// <see cref="SampleSpread"/> times the bound, which lands near half a second at the default
+    /// schedule and does not grow with <c>Q</c>. It is paid on every run, including the ones that
+    /// go on to be refused, and it buys the only thing that makes a time budget honest: a price
+    /// measured on this machine, at this order, against these enclosures, rather than a constant
+    /// carried from the bench somebody last measured on.
+    /// </para>
+    /// </remarks>
+    public const int SampleCandidates = 4_000;
+
+    /// <summary>How far apart the calibration's two sample bounds sit.</summary>
+    /// <remarks>
+    /// One walk cannot separate the outer loop's price from the inner one's; two at different
+    /// bounds can, because the outer count is linear in the bound and the inner one quadratic.
+    /// Four rather than two, because the inner term is what the solution recovers as a difference:
+    /// at a spread of two the larger walk's inner work is a tenth of its total on the default
+    /// schedule, and a couple of per cent of timing noise moves the answer by a third. At four it
+    /// is not, and the larger walk still costs a fraction of a second.
+    /// </remarks>
+    public const int SampleSpread = 4;
+
+    /// <summary>How many times each sample bound is walked, of which the fastest is the timing.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The first walk of anything in this process is not a measurement of the walk.</b> The
+    /// runtime compiles in tiers, and a method reaches the optimised tier only after a call count
+    /// and a delay that <i>restarts</i> while new methods are still being compiled - so a sample
+    /// taken shortly after start-up times the promotion as much as the work.
+    /// </para>
+    /// <para>
+    /// Measured here 2026-09-09, and it is not a small effect. The same sample walk - 3,584
+    /// denominators, 1,290 candidates - took 63 ms inside <c>survivors 3</c> and 23 ms inside
+    /// <c>survivors 3 2 9</c>, whose longer pipeline had already warmed the same arithmetic.
+    /// Nearly threefold, on nearly identical work, decided by what had run before it. The cold
+    /// reading also made the candidate price come out <i>negative</i> and be clamped away, because
+    /// the inner loop's share of a small sample is a few per cent and a threefold error swamps it.
+    /// </para>
+    /// <para>
+    /// The fastest of a few passes rather than their mean, and that is not a preference for the
+    /// flattering number: every contaminant here - compilation, tier promotion, a scheduler
+    /// preempting the thread - only ever <i>adds</i> time, so the minimum is the closest estimate
+    /// of steady-state cost a short sample can give.
+    /// </para>
+    /// </remarks>
+    public const int SamplePasses = 3;
+
+    /// <summary>How long the calibration walks before it starts believing its own clock.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The runtime's optimised tier arrives on a timer, not only on a call count</b>, and the
+    /// timer restarts while new methods are still being compiled. So a fixed number of short passes
+    /// does not reach steady state: measured here 2026-09-09 on the default schedule, ten
+    /// successive walks of the same sample ran 51, 51, 52, 43, 62, 48, 36, 35, 34 and 37
+    /// milliseconds - flat for three passes at a third above the truth, which is exactly long
+    /// enough to fool a stop-when-two-agree rule.
+    /// </para>
+    /// <para>
+    /// Three tenths of a second is what it took to fall through on this bench. It is a wall clock
+    /// rather than a pass count so a slower machine spends fewer passes reaching the same place,
+    /// and it bounds the whole calibration at well under a second on any run.
+    /// </para>
+    /// </remarks>
+    public const double SampleWarmUpSeconds = 0.3;
 
     private const string NoEnclosuresMessage =
         "A run with no enclosures intersects nothing and has no cost to estimate. " +
         "SurvivorReport.Of refuses the same list for the same reason.";
+
+    private const string NegativePriceMessage =
+        "A candidate cannot cost negative time. A price comes from Calibrate, which divides a " +
+        "stopwatch reading by a candidate count and so cannot produce one.";
+
+    /// <summary>Seconds to microseconds, for the one figure this command reports in them.</summary>
+    private static readonly BigRational Million = BigRational.FromInteger(1_000_000);
 
     /// <summary>Runs the survivor report and writes it.</summary>
     /// <param name="arguments">The command's arguments, as <see cref="Interpret"/> reads them.</param>
@@ -169,7 +255,9 @@ internal static class SurvivorRun
         IReadOnlyList<Approximation> enclosures = SurvivorReport.Distinct(SurvivorReport.EnclosuresOf(run));
 
         BigInteger bound = SurvivorReport.DerivedBound(enclosures[^1]);
-        string? tooDear = Refuse(enclosures, bound);
+        WalkPrice price = Calibrate(enclosures, bound);
+
+        string? tooDear = Refuse(enclosures, bound, price);
         if (tooDear is not null)
         {
             notes.WriteLine();
@@ -177,8 +265,9 @@ internal static class SurvivorRun
             return 2;
         }
 
-        Sizing(notes, run, enclosures, bound);
+        Sizing(notes, run, enclosures, bound, price);
 
+        var walk = Stopwatch.StartNew();
         SurvivorReport report = SurvivorReport.Of(
             enclosures,
             bound,
@@ -187,10 +276,11 @@ internal static class SurvivorRun
                 $"  enclosure {index}  half-width {Presentation.Magnitude(enclosures[index].MaxError),-9}  " +
                 $"still standing {count:N0}")));
 
+        walk.Stop();
         clock.Stop();
 
         SurvivorChart.Write(Console.Out, report, Caption(request, run, enclosures, bound));
-        Epilogue(notes, report, request.Order, clock.Elapsed.TotalSeconds);
+        Epilogue(notes, report, request.Order, clock.Elapsed.TotalSeconds, walk.Elapsed.TotalSeconds);
 
         return 0;
     }
@@ -331,73 +421,285 @@ internal static class SurvivorRun
     /// <summary>The reason this run's enumeration will not be paid for, or null when it will.</summary>
     /// <param name="enclosures">Every enclosure the run will intersect, in order.</param>
     /// <param name="denominatorBound">The derived bound.</param>
+    /// <param name="price">What each loop costs here, as <see cref="Calibrate"/> measures it.</param>
     /// <returns>The refusal, or null.</returns>
     /// <remarks>
     /// <para>
     /// A pure function of its arguments, which is what lets a test exercise the refusal without a
-    /// run behind it.
+    /// run behind it. The measurement is the caller's: this sizes the walk, multiplies by a price
+    /// it was handed, and compares the product with <see cref="BudgetSeconds"/> - every step of it
+    /// exact rational arithmetic over given values.
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
-    public static string? Refuse(IReadOnlyList<Approximation> enclosures, BigInteger denominatorBound)
+    /// <exception cref="ArgumentOutOfRangeException">Either half of <paramref name="price"/> is negative.</exception>
+    public static string? Refuse(
+        IReadOnlyList<Approximation> enclosures,
+        BigInteger denominatorBound,
+        WalkPrice price)
     {
-        BigInteger estimate = Estimate(enclosures, denominatorBound);
+        if (price.PerDenominator.Sign < 0 || price.PerCandidate.Sign < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(price), price, NegativePriceMessage);
+        }
 
-        return estimate > Budget
+        WalkSize size = Size(enclosures, denominatorBound);
+        BigRational predicted = price.Seconds(size);
+
+        return predicted > BigRational.FromInteger(BudgetSeconds)
             ? string.Create(CultureInfo.InvariantCulture,
-                $"Refusing this run: it would enumerate about {estimate:N0} candidates, " +
-                $"past the budget of {Budget:N0}.\n" +
+                $"Refusing this run: it is predicted to spend {Presentation.Roughly(predicted)} " +
+                $"seconds enumerating, past the budget of {BudgetSeconds}.\n" +
                 $"  the bound   Q = {denominatorBound}, derived as floor(eps^(-1/2)) from the final enclosure\n" +
-                $"  the cost    every one of the {enclosures.Count} collapse points walks the denominators\n" +
-                $"              1..Q afresh, counting the rationals its own prefix admits - about\n" +
-                $"              h*Q^2 + Q apiece for a prefix of half-width h - so one more decade of\n" +
-                $"              schedule is ten times this figure, not twice it\n" +
+                $"  the walk    {size.Denominators:N0} denominators and {size.Candidates:N0} candidates: " +
+                $"each of the {enclosures.Count} collapse\n" +
+                $"              points steps through 1..Q afresh, counting the rationals its own prefix\n" +
+                $"              admits - about h*Q^2 + Q apiece for a prefix of half-width h - so one\n" +
+                $"              more decade of schedule is ten times this figure, not twice it\n" +
+                $"  the price   {Presentation.Roughly(price.PerDenominator * Million)} microseconds a " +
+                $"denominator and {Presentation.Roughly(price.PerCandidate * Million)} a candidate,\n" +
+                $"              timed here against these enclosures before the search. It rises with\n" +
+                $"              the ORDER, so a budget counting candidates would not have meant the\n" +
+                $"              same thing here as at order 3\n" +
                 $"Shorten the schedule rather than lowering Q: a hand-picked bound is what made the\n" +
                 $"exploration's second graph misleading, and Q is derived here on purpose.")
             : null;
     }
 
-    /// <summary>About how many candidates the whole intersection walks.</summary>
+    /// <summary>The widest enclosure of a run, which is the one the calibration samples.</summary>
+    /// <param name="enclosures">Every enclosure the run will intersect, in order.</param>
+    /// <returns>That enclosure alone, as a list a walk can be run against.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
+    /// <remarks>
+    /// Found by half-width rather than taken as <c>enclosures[0]</c>. A run's enclosures only
+    /// tighten so the two agree there, and this is what makes the same function right for a list a
+    /// test hands over in any order - the same reason <see cref="Size"/> tracks a running minimum.
+    /// </remarks>
+    public static IReadOnlyList<Approximation> Widest(IReadOnlyList<Approximation> enclosures)
+    {
+        ArgumentNullException.ThrowIfNull(enclosures);
+
+        if (enclosures.Count == 0)
+        {
+            throw new ArgumentException(NoEnclosuresMessage, nameof(enclosures));
+        }
+
+        Approximation widest = enclosures[0];
+
+        foreach (Approximation enclosure in enclosures)
+        {
+            if (enclosure.MaxError > widest.MaxError)
+            {
+                widest = enclosure;
+            }
+        }
+
+        return [widest];
+    }
+
+    /// <summary>The smaller of the two denominator bounds the calibration walks to.</summary>
+    /// <param name="enclosures">Every enclosure the run will intersect, in order.</param>
+    /// <param name="denominatorBound">The derived bound the real walk will run to.</param>
+    /// <returns>
+    /// The least power of two at which a walk of the widest enclosure alone reaches
+    /// <see cref="SampleCandidates"/>, and never more than <paramref name="denominatorBound"/> - a
+    /// run smaller than the sample is sampled by being run.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
+    /// <remarks>
+    /// <para>
+    /// A pure function, so what the sample is asked to do is decidable without timing anything.
+    /// Only how long it then takes is a measurement.
+    /// </para>
+    /// <para>
+    /// Doubling rather than solving for the bound: the size is a sum of quadratics whose
+    /// coefficients are the realised half-widths, and inverting it exactly would put a second
+    /// spelling of the cost law in the file. Doubling asks <see cref="Size"/> itself, so the sample
+    /// is sized by the same arithmetic the prediction uses and cannot drift from it.
+    /// </para>
+    /// </remarks>
+    public static BigInteger SampleBound(IReadOnlyList<Approximation> enclosures, BigInteger denominatorBound)
+    {
+        IReadOnlyList<Approximation> widest = Widest(enclosures);
+        BigInteger bound = BigInteger.One;
+
+        while (bound * SampleSpread < denominatorBound && Size(widest, bound).Total < SampleCandidates)
+        {
+            bound *= 2;
+        }
+
+        return BigInteger.Min(bound, denominatorBound);
+    }
+
+    /// <summary>Times two short walks over the real enclosures and solves for what each loop costs.</summary>
+    /// <param name="enclosures">Every enclosure the run will intersect, in order.</param>
+    /// <param name="denominatorBound">The derived bound the real walk will run to.</param>
+    /// <returns>
+    /// The two prices, with the bounds they were measured at. Both are zero when there is no
+    /// sample to walk, which is a run with nothing to price rather than a free one.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
+    /// <remarks>
+    /// <para>
+    /// <b>The only measured quantity in this command, and it decides only what to spend.</b>
+    /// Everything the run reports - the survivor set, <c>Q</c>, the null - is exact arithmetic over
+    /// proven bounds. This is a stopwatch, and it is confined to the question of whether to start;
+    /// <c>../AGENTS.md</c> § Exactness discipline bans an empirical number from a computational
+    /// path, and a cost guard is not one.
+    /// </para>
+    /// <para>
+    /// <b>It walks the production path rather than a model of it.</b>
+    /// <see cref="SurvivorReport.Of"/> at a smaller bound does exactly what the real walk does,
+    /// with the same seeding and the same bookkeeping, so nothing here can drift from what it is
+    /// pricing.
+    /// </para>
+    /// <para>
+    /// <b>The sample walks the widest enclosure alone, not the whole prefix list, and that is what
+    /// makes the inner price recoverable at all.</b> The two equations are only as independent as
+    /// the candidate share differs between them, and against the full list that share is a few per
+    /// cent at either bound - measured 2026-09-09, the inner term was 3% of the larger sample's
+    /// time on the default schedule, so timing jitter drove the solved inner price negative on
+    /// every run and it was clamped away. The widest enclosure has the highest candidate density
+    /// available, which lifts that share to a fifth or more and makes the difference a signal
+    /// rather than a rounding error.
+    /// </para>
+    /// <para>
+    /// <b>What that costs is an assumption, stated here rather than hidden, and it is why this
+    /// guard errs towards admitting.</b> Both prices are measured against the <i>widest</i>
+    /// enclosure's endpoints and then applied to every prefix - and a narrower enclosure carries
+    /// larger endpoints, so the prefixes the sample never touches cost more than it charges for
+    /// them. Measured on this bench 2026-09-09, the prediction came to between 0.6 and 0.85 of the
+    /// realised walk across four schedules. The epilogue prints the realised walk beside the
+    /// prediction for exactly that reason: the guard's own error is on the screen of every run
+    /// rather than something a reader has to take on trust.
+    /// </para>
+    /// <para>
+    /// <b>Two bounds, a factor of <see cref="SampleSpread"/> apart, because one walk cannot
+    /// separate the two loops.</b> A walk to <c>q</c> costs
+    /// <c>a*Denominators(q) + b*Candidates(q)</c>, and the denominator count is linear in <c>q</c>
+    /// where the candidate count is quadratic - so two bounds give two independent equations and
+    /// the solution below is exact. One bound gives only the blend, and the blend is a property of
+    /// the sample rather than of the machine: measured here, the same walk that costs 10
+    /// microseconds a unit at <c>q = 1,024</c> costs 3.1 at <c>Q = 11,585</c>, because the first is
+    /// 58% outer loop and the second 11%. A single-price sample scaled by a count overstated the
+    /// real walk threefold, which is the whole reason this solves rather than divides.
+    /// </para>
+    /// <para>
+    /// Each bound is walked <see cref="SamplePasses"/> times and the fastest kept, which is what
+    /// keeps the two timings comparable across a tiering runtime; that constant's remarks carry
+    /// the measurement behind it.
+    /// </para>
+    /// <para>
+    /// A price that comes out negative is clamped to zero. The inner price is what this
+    /// arrangement pins down; the outer one is the residue left after it, and on a shallow schedule
+    /// that residue is small enough to land either side of zero from pass to pass. Clamping keeps
+    /// the prediction monotone in the walk size, and it errs in the same direction as everything
+    /// else here.
+    /// </para>
+    /// </remarks>
+    public static WalkPrice Calibrate(IReadOnlyList<Approximation> enclosures, BigInteger denominatorBound)
+    {
+        IReadOnlyList<Approximation> widest = Widest(enclosures);
+        BigInteger small = SampleBound(enclosures, denominatorBound);
+        BigInteger large = BigInteger.Min(small * SampleSpread, denominatorBound);
+
+        WalkSize lower = Size(widest, small);
+        WalkSize upper = Size(widest, large);
+
+        if (lower.Total.IsZero)
+        {
+            return new WalkPrice(BigRational.Zero, BigRational.Zero, small, large);
+        }
+
+        // The larger walk goes first and runs for at least SampleWarmUpSeconds, because the
+        // runtime's optimised tier arrives on a timer as much as on a call count. By the time the
+        // smaller walk is timed, everything under both of them is compiled the way the real walk
+        // will find it - and the warm-up is not thrown away, it IS the larger measurement.
+        BigRational upperSeconds = Fastest(widest, large, SampleWarmUpSeconds);
+        BigRational lowerSeconds = Fastest(widest, small, 0);
+
+        BigRational determinant =
+            BigRational.FromInteger((lower.Denominators * upper.Candidates) -
+                                    (upper.Denominators * lower.Candidates));
+
+        if (determinant.IsZero)
+        {
+            // One equation, so only the blend is recoverable - and it is exactly right in the one
+            // case that reaches here, where the sample bound has been capped at Q and the sample
+            // is the run.
+            BigRational blended = lowerSeconds / BigRational.FromInteger(lower.Total);
+            return new WalkPrice(blended, blended, small, large);
+        }
+
+        BigRational perDenominator =
+            ((lowerSeconds * BigRational.FromInteger(upper.Candidates)) -
+             (upperSeconds * BigRational.FromInteger(lower.Candidates))) / determinant;
+
+        BigRational perCandidate =
+            ((upperSeconds * BigRational.FromInteger(lower.Denominators)) -
+             (lowerSeconds * BigRational.FromInteger(upper.Denominators))) / determinant;
+
+        return new WalkPrice(
+            AtLeastNothing(perDenominator),
+            AtLeastNothing(perCandidate),
+            small,
+            large);
+    }
+
+    /// <summary>How many candidates the whole intersection walks, both loops together.</summary>
     /// <param name="enclosures">Every enclosure the run will intersect, in order.</param>
     /// <param name="denominatorBound">The derived bound.</param>
     /// <returns>The estimate, truncated to an integer.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
     /// <remarks>
+    /// The figure the reports quote, which is <see cref="WalkSize.Total"/>. What it is not is a
+    /// price: see <see cref="WalkSize"/> for why the two loops are counted apart.
+    /// </remarks>
+    public static BigInteger Estimate(IReadOnlyList<Approximation> enclosures, BigInteger denominatorBound) =>
+        Size(enclosures, denominatorBound).Total;
+
+    /// <summary>How much work the whole intersection is, counted as its two loops.</summary>
+    /// <param name="enclosures">Every enclosure the run will intersect, in order.</param>
+    /// <param name="denominatorBound">The derived bound.</param>
+    /// <returns>The two counts, each truncated to an integer.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
+    /// <remarks>
     /// <para>
-    /// <b>Every prefix is priced, not just the first.</b> One prefix costs the rationals of
-    /// denominator at or below <c>Q</c> inside an interval of half-width <c>h</c>: about
-    /// <c>h*Q^2 + Q</c>, since each denominator contributes the integers in an interval of width
-    /// <c>2*h*q</c> and one more for the endpoints. That <c>+ Q</c> is a floor rather than a
-    /// rounding term - <see cref="SurvivorSearch"/> walks <c>1..Q</c> whatever its interval holds,
-    /// so a prefix narrow enough to admit nothing still costs <c>Q</c> - and
-    /// <see cref="SurvivorReport.Of"/> enumerates each prefix afresh, so the run pays the sum and
-    /// not the first term.
+    /// <b>Every prefix is counted, not just the first.</b> One prefix steps through the
+    /// denominators <c>1..Q</c> and offers, at each, the integers in an interval of width
+    /// <c>2*h*q</c> - so about <c>Q</c> turns of the outer loop and <c>h*Q^2</c> of the inner, for
+    /// a prefix of half-width <c>h</c>. <see cref="SurvivorReport.Of"/> enumerates each prefix
+    /// afresh, so the run pays the sum over all of them and not the first term.
     /// </para>
     /// <para>
-    /// <b>This was the guard's defect, ruled on <c>halheinrich/Math#64</c> 2026-09-09.</b> The
-    /// estimate priced <c>enclosures[0]</c> alone while the call site held the whole list. At
-    /// <c>1e-6 .. 1e-12</c> the omitted floor exceeds the term that was counted; at
+    /// <b>Omitting the outer loop was the guard's defect, ruled on <c>halheinrich/Math#64</c>
+    /// 2026-09-09.</b> The estimate priced <c>enclosures[0]</c> alone while the call site held the
+    /// whole list. At <c>1e-6 .. 1e-12</c> the omitted term exceeds the term that was counted; at
     /// <c>1e-10 .. 1e-12</c> it is the entire cost, where the shipped figure implied 20.8
     /// microseconds a candidate and the corrected one implies 6.9. A per-candidate price read off
-    /// an estimate that omits most of the candidates is a measurement of the estimate.
+    /// an estimate that omits most of the work is a measurement of the estimate.
     /// </para>
     /// <para>
-    /// Each prefix is priced at its <i>narrowest</i> enclosure, which is the one
+    /// Each prefix is sized at its <i>narrowest</i> enclosure, which is the one
     /// <see cref="SurvivorSearch"/> seeds its walk from. In a run the enclosures only tighten, so
     /// that is the prefix's last element; the running minimum below is what makes the same
     /// arithmetic right for a list handed over by a test in any order.
     /// </para>
     /// <para>
-    /// It ignores the reduction to lowest terms, which removes a constant fraction, so it
-    /// overstates by something under a factor of two and never understates. Exact rational
+    /// The inner count ignores the reduction to lowest terms, which removes a constant fraction,
+    /// so it overstates by something under a factor of two and never understates. Exact rational
     /// arithmetic truncated at the end, not floating point: <c>Q</c> runs to millions and its
-    /// square past a <see cref="double"/>'s integer range, where a figure quoted in a refusal
-    /// would start being wrong in its leading digits.
+    /// square past a <see cref="double"/>'s integer range, where a figure quoted in a refusal would
+    /// start being wrong in its leading digits.
     /// </para>
     /// </remarks>
-    public static BigInteger Estimate(IReadOnlyList<Approximation> enclosures, BigInteger denominatorBound)
+    public static WalkSize Size(IReadOnlyList<Approximation> enclosures, BigInteger denominatorBound)
     {
         ArgumentNullException.ThrowIfNull(enclosures);
 
@@ -418,10 +720,45 @@ internal static class SurvivorRun
                 narrowest = enclosure.MaxError;
             }
 
-            candidates += (narrowest * square) + bound;
+            candidates += narrowest * square;
         }
 
-        return candidates.Numerator / candidates.Denominator;
+        return new WalkSize(
+            denominatorBound * enclosures.Count,
+            candidates.Numerator / candidates.Denominator);
+    }
+
+    /// <summary>A price with the noise of a short timing clamped out of it.</summary>
+    private static BigRational AtLeastNothing(BigRational price) =>
+        price.Sign < 0 ? BigRational.Zero : price;
+
+    /// <summary>Walks the enclosures to one bound repeatedly and keeps the fastest pass.</summary>
+    /// <param name="enclosures">What to walk.</param>
+    /// <param name="bound">The denominator bound to walk to.</param>
+    /// <param name="atLeastSeconds">
+    /// Keep going until this much wall clock has been spent, however few passes that is - zero for
+    /// a bound whose predecessor has already warmed the code.
+    /// </param>
+    private static BigRational Fastest(
+        IReadOnlyList<Approximation> enclosures, BigInteger bound, double atLeastSeconds)
+    {
+        long fastest = long.MaxValue;
+        var spent = Stopwatch.StartNew();
+        int pass = 0;
+
+        while (pass < SamplePasses || spent.Elapsed.TotalSeconds < atLeastSeconds)
+        {
+            var clock = Stopwatch.StartNew();
+            SurvivorReport.Of(enclosures, bound, TrackedCap);
+            clock.Stop();
+
+            fastest = Math.Min(fastest, clock.ElapsedTicks);
+            pass++;
+        }
+
+        spent.Stop();
+
+        return new BigRational(fastest, Stopwatch.Frequency);
     }
 
     /// <summary>Reads one argument as a whole number, or explains why it is not one.</summary>
@@ -505,8 +842,11 @@ internal static class SurvivorRun
         TextWriter notes,
         RatioRun run,
         IReadOnlyList<Approximation> enclosures,
-        BigInteger bound)
+        BigInteger bound,
+        WalkPrice price)
     {
+        WalkSize size = Size(enclosures, bound);
+
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  {run.Iterations.Count} targets realised {enclosures.Count} distinct enclosures; " +
             $"repeats are dropped, since intersecting an enclosure with itself refutes nothing."));
@@ -514,9 +854,17 @@ internal static class SurvivorRun
             $"  Q = {bound}, derived as floor(eps^(-1/2)) from the final half-width " +
             $"{Presentation.Magnitude(enclosures[^1].MaxError)} - the depth a generic sweep reaches."));
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  the walk is about {Estimate(enclosures, bound):N0} candidates over all " +
-            $"{enclosures.Count} prefixes, of which the opening step is " +
-            $"{Estimate([enclosures[0]], bound):N0}."));
+            $"  the walk is {size.Denominators:N0} denominators and {size.Candidates:N0} candidates " +
+            $"over all {enclosures.Count} prefixes,"));
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  of which the opening step is {Estimate([enclosures[0]], bound):N0}."));
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  samples to q = {price.SmallSample} and q = {price.LargeSample} priced a denominator at " +
+            $"{Presentation.Roughly(price.PerDenominator * Million)} microseconds"));
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  and a candidate at {Presentation.Roughly(price.PerCandidate * Million)}, so the walk " +
+            $"predicts {Presentation.Roughly(price.Seconds(size))} s against a budget of {BudgetSeconds}."));
+        notes.WriteLine("  The price is this machine's; the answer is not.");
         notes.WriteLine();
         notes.WriteLine("intersecting, one enclosure at a time:");
     }
@@ -550,11 +898,13 @@ internal static class SurvivorRun
         notes.WriteLine("  an upper bound on the null and errs towards calling a survivor unremarkable.");
     }
 
-    private static void Epilogue(TextWriter notes, SurvivorReport report, int order, double seconds)
+    private static void Epilogue(
+        TextWriter notes, SurvivorReport report, int order, double seconds, double walkSeconds)
     {
         notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"{report.Enclosures.Count} enclosures, {seconds:F2} s. The SVG is on stdout - redirect it."));
+            $"{report.Enclosures.Count} enclosures, {seconds:F2} s, of which the walk the budget " +
+            $"prices was {walkSeconds:F2} s. The SVG is on stdout - redirect it."));
         notes.WriteLine();
         notes.WriteLine("WHAT THIS RUN ESTABLISHES");
         notes.WriteLine();

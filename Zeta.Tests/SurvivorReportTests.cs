@@ -440,28 +440,82 @@ public sealed class SurvivorReportTests
     public void Estimate_RefusesNoEnclosuresAtAll() =>
         Assert.Throws<ArgumentException>(() => SurvivorRun.Estimate([], 100));
 
+    // ---------- the budget, which is a predicted time and not a count ----------
+
+    /// <summary>A price of one microsecond a candidate and nothing a denominator.</summary>
+    /// <remarks>
+    /// The two are separated so a test can move one and hold the other, which is the whole of what
+    /// splitting the walk into two loops bought. Sample bounds of zero go with it: nothing here
+    /// took a measurement, and a price carries where it was measured.
+    /// </remarks>
+    private static readonly WalkPrice CandidateMicrosecond =
+        new(BigRational.Zero, new BigRational(1, 1_000_000), 0, 0);
+
+    /// <summary>The same, with the microsecond charged to the denominator loop instead.</summary>
+    private static readonly WalkPrice DenominatorMicrosecond =
+        new(new BigRational(1, 1_000_000), BigRational.Zero, 0, 0);
+
     [Fact]
     public void Refuse_PassesARunItCanAffordAndStopsOneItCannot()
     {
         IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
 
-        Assert.Null(SurvivorRun.Refuse(enclosures, 100));
-        Assert.NotNull(SurvivorRun.Refuse(enclosures, BigInteger.Pow(10, 9)));
+        Assert.Null(SurvivorRun.Refuse(enclosures, 100, CandidateMicrosecond));
+        Assert.NotNull(SurvivorRun.Refuse(enclosures, BigInteger.Pow(10, 9), CandidateMicrosecond));
     }
 
     [Fact]
-    public void Refuse_StopsARunTheOmittedFloorAloneCannotAfford()
+    public void Refuse_PricesOneRunTwoWaysWhenTheCandidateCostsTwoDifferentThings()
     {
-        // The case that would pass against the estimate this replaced. Every prefix is far too
-        // narrow to admit anything, so the whole cost is the floor: one prefix is 40,000,000
-        // candidates and inside the budget, and forty of them are 1,600,000,000 and are not. An
-        // estimate reading enclosures[0] alone sees the affordable figure either way.
+        // The whole of the change. Q = 100,000 and a half-width of 1e-2 give 100,000,000
+        // candidates, which is 100 seconds at one microsecond apiece and 500 at five - the spread
+        // ruling 2 measured between orders 3 and 10, at one schedule with only the order varying.
+        // A budget counting candidates cannot tell these two runs apart, and one of them is a
+        // five-minute wait while the other is more than twenty.
+        IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
+        WalkPrice dearer = CandidateMicrosecond with { PerCandidate = CandidateMicrosecond.PerCandidate * 5 };
+
+        Assert.Equal(100_000_000, SurvivorRun.Size(enclosures, 100_000).Candidates);
+        Assert.Null(SurvivorRun.Refuse(enclosures, 100_000, CandidateMicrosecond));
+        Assert.NotNull(SurvivorRun.Refuse(enclosures, 100_000, dearer));
+    }
+
+    [Fact]
+    public void Refuse_ChargesTheOuterLoopWhateverTheInnerOneAdmits()
+    {
+        // The floor the old estimate omitted, now priced in its own right. Forty prefixes too
+        // narrow to admit a single candidate still step through 1..Q apiece: at Q = 40,000,000
+        // that is 1.6 billion turns of the outer loop, and 1,600 seconds of them. A guard pricing
+        // only what the intervals hold sees a run that costs nothing at all.
         Approximation sliver = At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 20));
         IReadOnlyList<Approximation> forty = [.. Enumerable.Repeat(sliver, 40)];
 
-        Assert.True(SurvivorRun.Estimate([sliver], 40_000_000) <= SurvivorRun.Budget);
-        Assert.Null(SurvivorRun.Refuse([sliver], 40_000_000));
-        Assert.NotNull(SurvivorRun.Refuse(forty, 40_000_000));
+        Assert.Equal(BigInteger.Zero, SurvivorRun.Size(forty, 40_000_000).Candidates);
+        Assert.Null(SurvivorRun.Refuse(forty, 40_000_000, CandidateMicrosecond));
+        Assert.NotNull(SurvivorRun.Refuse(forty, 40_000_000, DenominatorMicrosecond));
+    }
+
+    [Fact]
+    public void Refuse_BuysNothingAtAPriceOfZero()
+    {
+        // Calibrate returns zero prices for a sample with no work in it. Nothing is then predicted
+        // to cost anything, which is right: the guard exists to stop a wait, and a measurement
+        // that found no work found no wait either.
+        Approximation sliver = At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 20));
+
+        Assert.Null(SurvivorRun.Refuse(
+            [sliver], BigInteger.Pow(10, 12), new WalkPrice(BigRational.Zero, BigRational.Zero, 0, 0)));
+    }
+
+    [Fact]
+    public void Refuse_RefusesAPriceThatIsNotATime()
+    {
+        IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => SurvivorRun.Refuse(
+            enclosures, 100, CandidateMicrosecond with { PerCandidate = -CandidateMicrosecond.PerCandidate }));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SurvivorRun.Refuse(
+            enclosures, 100, DenominatorMicrosecond with { PerDenominator = -DenominatorMicrosecond.PerDenominator }));
     }
 
     [Fact]
@@ -470,9 +524,23 @@ public sealed class SurvivorReportTests
         // The bound is derived on purpose. A refusal that invited lowering it would invite exactly
         // the hand-picked cap that made the exploration's second graph misleading.
         string? refusal = SurvivorRun.Refuse(
-            [At(BigRational.FromInteger(6), 1, 100)], BigInteger.Pow(10, 9));
+            [At(BigRational.FromInteger(6), 1, 100)], BigInteger.Pow(10, 9), CandidateMicrosecond);
 
         Assert.Contains("Shorten the schedule", refusal, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Refuse_QuotesThePriceItWasHandedAndNotAConstant()
+    {
+        // A refusal reporting a count alone would read identically at every order, which is
+        // exactly the transfer ruling 2 found does not hold.
+        string? refusal = SurvivorRun.Refuse(
+            [At(BigRational.FromInteger(6), 1, 100)],
+            BigInteger.Pow(10, 9),
+            CandidateMicrosecond with { PerCandidate = CandidateMicrosecond.PerCandidate * 7 });
+
+        Assert.Contains("7.0 a candidate", refusal, StringComparison.Ordinal);
+        Assert.Contains("budget of " + SurvivorRun.BudgetSeconds, refusal, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -480,11 +548,12 @@ public sealed class SurvivorReportTests
     {
         // The advice in that refusal became actionable when the schedule became an argument: a
         // caller can now shorten it. What follows is the two sides of the budget priced by hand,
-        // at a widest enclosure of half-width 1e-2 - the default schedule's first target.
+        // at a widest enclosure of half-width 1e-2 - the default schedule's first target - and a
+        // candidate costing the microsecond order 3 costs on this bench.
         //
-        // The shipped last target of 1e-8 derives Q = 1e4, so the widest prefix is 1e-2 * 1e8 =
-        // 1e6, comfortably inside the budget. Four decades further derives Q = 1e6 and a widest
-        // prefix of 1e10, four orders past it. Nothing between them is asserted here: what the run
+        // The shipped last target of 1e-8 derives Q = 1e4, so the walk holds 1e-2 * 1e8 = 1e6
+        // candidates, comfortably inside the budget. Four decades further derives Q = 1e6 and 1e10
+        // of them, four orders past it. Nothing between them is asserted here: what the run
         // actually realises is tighter than what it was asked for, and only a run knows by how
         // much.
         IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
@@ -492,8 +561,101 @@ public sealed class SurvivorReportTests
         BigInteger shipped = SurvivorReport.DerivedBound(At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 8)));
         BigInteger deeper = SurvivorReport.DerivedBound(At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 12)));
 
-        Assert.Null(SurvivorRun.Refuse(enclosures, shipped));
-        Assert.NotNull(SurvivorRun.Refuse(enclosures, deeper));
+        Assert.Null(SurvivorRun.Refuse(enclosures, shipped, CandidateMicrosecond));
+        Assert.NotNull(SurvivorRun.Refuse(enclosures, deeper, CandidateMicrosecond));
+    }
+
+    // ---------- the two loops, counted apart ----------
+
+    [Fact]
+    public void Size_CountsTheOuterLoopOncePerPrefixWhateverTheIntervalsHold()
+    {
+        // Q turns of the outer loop per prefix, exactly, and nothing about the half-widths enters
+        // it. Three prefixes at Q = 100 is 300 turns whether they admit millions or none.
+        Approximation wide = At(BigRational.FromInteger(6), 1, 100);
+        Approximation sliver = At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 20));
+
+        Assert.Equal(300, SurvivorRun.Size([wide, wide, wide], 100).Denominators);
+        Assert.Equal(300, SurvivorRun.Size([sliver, sliver, sliver], 100).Denominators);
+    }
+
+    [Fact]
+    public void Size_AddsUpToWhatTheReportsQuote() =>
+        Assert.Equal(
+            SurvivorRun.Estimate([At(BigRational.FromInteger(6), 1, 100)], 100),
+            SurvivorRun.Size([At(BigRational.FromInteger(6), 1, 100)], 100).Total);
+
+    // ---------- the calibration sample, whose size is decidable and whose timing is not ----------
+
+    [Fact]
+    public void Widest_FindsTheWidestEnclosureRatherThanTheFirst()
+    {
+        Approximation wide = At(BigRational.FromInteger(6), 1, 10);
+        Approximation narrow = At(BigRational.FromInteger(6), 1, 1000);
+
+        // Ordered as a run produces them, and then reversed - the answer must not move.
+        Assert.Equal([wide], SurvivorRun.Widest([wide, narrow]));
+        Assert.Equal([wide], SurvivorRun.Widest([narrow, wide]));
+    }
+
+    [Fact]
+    public void Widest_RefusesNoEnclosuresAtAll() =>
+        Assert.Throws<ArgumentException>(() => SurvivorRun.Widest([]));
+
+    [Fact]
+    public void SampleBound_DoublesUntilTheWidestWalkIsWorthTiming()
+    {
+        // Half-width 1e-2, so a walk of the widest enclosure alone to q holds q^2/100 candidates
+        // and q denominators. At 512 that is 3,133 and short of the 4,000 the sample aims for; at
+        // 1,024 it is 11,509 and past it. The overshoot is the doubling meeting a quadratic, and
+        // is documented rather than tuned away.
+        IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
+
+        Assert.True(SurvivorRun.Size(enclosures, 512).Total < SurvivorRun.SampleCandidates);
+        Assert.True(SurvivorRun.Size(enclosures, 1_024).Total >= SurvivorRun.SampleCandidates);
+        Assert.Equal(1_024, SurvivorRun.SampleBound(enclosures, BigInteger.Pow(10, 9)));
+    }
+
+    [Fact]
+    public void SampleBound_SizesItselfOnTheWidestEnclosureAndNotTheWholeList()
+    {
+        // The narrow prefixes carry the outer loop and none of the inner one, so counting them
+        // would reach the target at a smaller bound and hand the solve two walks that barely
+        // differ in what the intervals hold - which is the degeneracy the widest-alone sample
+        // exists to avoid.
+        Approximation wide = At(BigRational.FromInteger(6), 1, 100);
+        Approximation sliver = At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 20));
+
+        Assert.Equal(
+            SurvivorRun.SampleBound([wide], BigInteger.Pow(10, 9)),
+            SurvivorRun.SampleBound([wide, sliver, sliver, sliver], BigInteger.Pow(10, 9)));
+    }
+
+    [Fact]
+    public void SampleBound_LeavesRoomForTheSecondWalkAndNeverPassesTheRun()
+    {
+        // A run smaller than the sample is sampled by being run, and the larger of the two sample
+        // bounds must still fit inside it - so the doubling stops a factor of SampleSpread short
+        // of Q rather than at Q.
+        IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
+
+        Assert.Equal(1_024, SurvivorRun.SampleBound(enclosures, 8_192));
+        Assert.Equal(512, SurvivorRun.SampleBound(enclosures, 2_048));
+        Assert.Equal(32, SurvivorRun.SampleBound(enclosures, 100));
+        Assert.Equal(BigInteger.Zero, SurvivorRun.SampleBound(enclosures, 0));
+    }
+
+    [Fact]
+    public void Calibrate_PricesNothingWhereThereIsNothingToWalk()
+    {
+        // The one branch of the calibration a test may assert. What the other branch returns is a
+        // stopwatch reading, and ../AGENTS.md section Testing discipline keeps a test off the wall
+        // clock - which is also why the guard is split the way it is: Size and SampleBound decide
+        // what to measure, Refuse decides what to do with it, and all three are pure.
+        WalkPrice free = SurvivorRun.Calibrate([At(BigRational.FromInteger(6), 1, 100)], 0);
+
+        Assert.Equal(BigRational.Zero, free.PerDenominator);
+        Assert.Equal(BigRational.Zero, free.PerCandidate);
     }
 
     // ---------- the schedule, which is an argument rather than a constant ----------

@@ -154,42 +154,57 @@ Said explicitly because the shorter reading, that "the providers halve", sends
 the next reader to `MachinPi` and `EulerMaclaurinZeta`, where the mechanism is
 not.
 
-The frontier that follows, all measured on this bench in Release at order 3:
+Starting later buys a refused decade back, and the default is unchanged because
+a deeper one is a separate judgement about what a first-time reader should wait
+for.
 
-| schedule          | Q         | opening step | wall      | µs/cand |
-| ----------------- | --------- | ------------ | --------- | ------- |
-| `1e-2 .. 1e-8`    | 11,585    | ~1.0M        | 3 s       |         |
-| `1e-2 .. 1e-9`    | 32,768    | 4,227,072    | 20 s      | 4.6     |
-| `1e-2 .. 1e-10`   | 131,072   | 67,239,936   | *refused* |         |
-| `1e-3 .. 1e-10`   | 131,072   | 16,908,288   | 78 s      | 4.6     |
-| `1e-3 .. 1e-11`   | 741,455   | 537,612,077  | *refused* |         |
-| `1e-4 .. 1e-11`   | 741,455   | 17,518,661   | 167 s     | 9.5     |
-| `1e-5 .. 1e-11`   | 741,455   | 4,935,756    | 76 s      | 15.4    |
-| `1e-11 .. 1e-11`  | 741,455   | 741,455      | 15 s      | 19.7    |
-| `1e-12 .. 1e-12`  | 4,194,304 | 4,194,305    | 47 s      | 11.2    |
+**The budget is a predicted time, not a count of candidates** (ruled on
+`halheinrich/Math#64` leg 3, 2026-09-09). A count does not transfer between
+orders: at one schedule with only the order varying, the price ran 6.0, 11.7 and
+33.3 µs a candidate at orders 3, 6 and 10, so sixty million of them was six
+minutes at order 3 and thirty-three at order 10 under one number claiming to mean
+the same thing at both. `SurvivorRun.BudgetSeconds` is five minutes, which is
+that sixty million expressed at the order-3 price it was measured at.
 
-So `1e-2 .. 1e-9` is the deepest the budget admits from the *default* first end,
-and starting later buys the refused decade back. The default is unchanged,
-because a deeper one is a separate judgement about what a first-time reader
-should wait for.
+**It is not a wall-clock abort, and that distinction is the ruling's.** The
+prediction is made before the search and the search then runs to completion, so
+a slow machine refuses runs a fast one admits and *neither reports a different
+answer*. A timed abort would cut the walk short at whatever depth the clock ran
+out at, which makes `Q`, and so the bound the run claims, a property of how fast
+the machine was that day.
 
-**`Budget` counts candidates, and a candidate is not a fixed price.** The last
-column above is the measurement: per-candidate cost runs from 4.6 µs at
-`Q = 32,768` to about 20 µs at `Q = 741,455`, because the per-candidate work is
-a gcd and an exact containment test whose operands grow with the denominator. So
-sixty million candidates is a few seconds' worth at the shallow end and a long
-wait at the deep end, and the budget bounds the count rather than the wait. The
-single-column rows are what establish this: they drive the opening step down to
-`Q` itself, so what they time is very nearly the per-candidate cost alone — and
-they also show the run's own refinement and sweeps to be seconds, not the hidden
-cost they might have been.
+**The walk is two loops with very different prices, and the guard measures
+both.** Stepping to the next denominator rounds the seed's two endpoints —
+rationals of a few hundred digits — against it; testing one candidate inside the
+interval is a gcd on operands no larger than `Q` and a containment test. So a
+single blended price is a property of the *mix* as much as of the machine, and
+the mix moves with the bound: on the default schedule the walk is 58% outer loop
+at `q = 1,024` and 11% at `Q = 11,585`. A one-price sample scaled by a count
+overstated the real walk threefold, which is why `SurvivorRun.Calibrate` solves
+for two prices rather than dividing for one.
 
-`1e-6 .. 1e-12` is the concrete case: the guard admits it, and it had not
-finished after twenty minutes here, when it was stopped. That is a lower bound
-rather than a measurement of the run. Whether the budget should be a time rather
-than a count, or should scale with `Q`, is `halheinrich/Math#64` leg 3's to rule
-on; it is not weakened here, and this change is what made it reachable by
-argument at all.
+**How it samples, and what that assumes.** Two walks of the *widest* enclosure
+alone, at bounds a factor of four apart: the denominator count is linear in the
+bound and the candidate count quadratic, so two bounds give two independent
+equations. Widest-alone rather than the whole prefix list because the solve is
+only as good as the difference in candidate share between the two walks, and
+against the full list that share is a few per cent at either bound — measured
+2026-09-09, the solved candidate price came out *negative* on every run and was
+clamped away. What it costs is an assumption stated in the method: both prices
+are measured on the widest enclosure's endpoints and applied to every prefix, and
+narrower enclosures carry larger endpoints, so the prediction understates. It ran
+0.6 to 0.85 of the realised walk across four schedules, and the epilogue prints
+the realised figure beside the prediction so the guard's error is on screen
+rather than on trust.
+
+**The sample warms up on a wall clock, and that is not fussiness.** The runtime
+reaches its optimised tier on a timer as much as on a call count, and the timer
+restarts while new methods are still being compiled — so ten successive walks of
+one sample ran 51, 51, 52, 43, 62, 48, 36, 35, 34 and 37 ms here, flat for three
+passes at a third above the truth. A fixed pass count, or a stop-when-two-agree
+rule, measures the compiler. `SurvivorRun.SampleWarmUpSeconds` walks for three
+tenths of a second before believing the clock, and the whole calibration stays
+under a second on any run.
 
 **`SurvivorRun.RefuseSchedule` guards shape and nothing else**, and has no
 counterpart to `target`'s `MaxLastExponent`: what a schedule costs is priced off

@@ -171,8 +171,13 @@ worth going is a real question and not a free one: every point of the collapse
 chart walks the denominators `1..Q` afresh, counting the rationals its own
 prefix admits — about `h·Q² + Q` apiece — and the widest prefix usually
 dominates the sum, so a decade off the last end costs ten times as much while a
-decade off the first end saves about four. Ask for more than the budget allows
-and the command prices the run instead of starting it.
+decade off the first end saves about four. Before it starts, the command times a
+short sample against the enclosures it has just realised and predicts what the
+walk will cost; ask for more than five minutes of it and it prints the price
+instead of paying it. The budget is in **seconds rather than candidates**,
+because a candidate costs five times more at order 10 than at order 3. It is not
+a timed abort — the search then runs to completion, so a slower machine refuses
+more runs and reports the same answer on the ones it admits.
 
 ## Building
 

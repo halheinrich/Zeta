@@ -145,14 +145,19 @@ internal static class Program
         notes.WriteLine();
         notes.WriteLine("  survivors has no depth ceiling, unlike target, because what a schedule");
         notes.WriteLine("  costs is priced off the enclosures a run REALISES and an argument cannot");
-        notes.WriteLine("  see those. It runs, then refuses to pay for the enumeration if that comes");
-        notes.WriteLine("  out past its budget. The opening step is about h*Q^2 for a first target h,");
-        notes.WriteLine("  so a decade off the last end costs ten times as much, while a decade off");
-        notes.WriteLine("  the first end saves less and by no fixed factor - about eight to the");
-        notes.WriteLine("  decade here, and lumpy. RatioEnclosure.Of coarsens, so every realised");
-        notes.WriteLine("  half-width is a power of two by construction, and which one a schedule");
-        notes.WriteLine("  lands on is set by the first provider step to meet the target. Deeper");
-        notes.WriteLine("  runs are bought by starting later, at the cost of a shorter chart.");
+        notes.WriteLine("  see those. It runs, times a short sample against those enclosures, and");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  refuses the enumeration if that predicts past {SurvivorRun.BudgetSeconds} seconds. A budget in"));
+        notes.WriteLine("  seconds rather than candidates because a candidate costs five times more");
+        notes.WriteLine("  at order 10 than at order 3. Not a timed abort: the search then runs to");
+        notes.WriteLine("  completion, so a slow machine refuses more and reports the same answer.");
+        notes.WriteLine("  Each collapse point walks about h*Q^2 + Q for a prefix half-width h, so a");
+        notes.WriteLine("  decade off the last end costs ten times as much, while a decade off the");
+        notes.WriteLine("  first end saves less and by no fixed factor - about eight to the decade");
+        notes.WriteLine("  here, and lumpy. RatioEnclosure.Of coarsens, so every realised half-width");
+        notes.WriteLine("  is a power of two by construction, and which one a schedule lands on is");
+        notes.WriteLine("  set by the first provider step to meet the target. Deeper runs are bought");
+        notes.WriteLine("  by starting later, at the cost of a shorter chart.");
         notes.WriteLine();
         notes.WriteLine("worth running");
         notes.WriteLine();
@@ -174,12 +179,11 @@ internal static class Program
             $"  {SurvivorsCommand + " 3",-16}  the same against pi^3/zeta(3), where nothing is known -"));
         notes.WriteLine("                    a few seconds, ending at Q = 11,585");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  {SurvivorsCommand + " 3 2 9",-16}  the deepest run the budget admits from the default"));
-        notes.WriteLine("                    first end, about 20 s and Q = 32,768; one decade further");
-        notes.WriteLine("                    is refused at 67.2M candidates against a budget of 60M");
+            $"  {SurvivorsCommand + " 3 2 9",-16}  one decade deeper from the default first end: about"));
+        notes.WriteLine("                    16 s and Q = 32,768");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  {SurvivorsCommand + " 3 4 11",-16}  what starting later buys: Q = 741,455, some 64 times"));
-        notes.WriteLine("                    the default's bound, in about three minutes and on a");
+        notes.WriteLine("                    the default's bound, in about two minutes and on a");
         notes.WriteLine("                    collapse chart of eight enclosures rather than seven");
         notes.WriteLine();
     }
