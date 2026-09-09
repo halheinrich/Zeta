@@ -10,12 +10,15 @@ namespace HalHeinrich.Numerics.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Three of section 4's eight, and the other five are held rather than forgotten.</b> That row
-/// was widened on 2026-09-08 to the even n = 2...16. Its last three targets carry denominators
-/// 691, 2 and 3617 and are the only ones that can tell a denominator claim from a height claim,
-/// every earlier one being denominator 1. Those five wait on the generalised runner held under
+/// <b>Three of a set that no longer has a last member, and the rest are held rather than
+/// forgotten.</b> That row was widened on 2026-09-08 to the even n = 2...16 and again on 2026-09-09
+/// to <see cref="EvenZetaRatio"/>'s generated set, which runs to any even order without limit -
+/// <c>halheinrich/Math#68</c>. From n = 12 the denominators are 691, 2, 3617, 43867, 174611 and on,
+/// and those are the only targets that can tell a denominator claim from a height claim, every
+/// earlier one being denominator 1. They wait on the generalised runner held under
 /// <c>halheinrich/Math#65</c>, which is where they are worth writing: a control earns most written
-/// against the pipeline shape that gets kept.
+/// against the pipeline shape that gets kept. What lands here now is the tie between the generated
+/// value and the pipeline's own answer, which costs nothing and is the strongest check available.
 /// </para>
 /// <para>
 /// <b>These are not the controls in <c>RealConstants.Tests/EvenZetaControlTests</c>, and neither
@@ -173,6 +176,28 @@ public sealed class PositiveControlTests
         Assert.True(
             run.Matrix.Ratios[^1].MaxError < TargetSchedule.Decade(64),
             Inv($"The final enclosure was {run.Matrix.Ratios[^1].MaxError} wide."));
+    }
+
+    [Theory]
+    [InlineData(2, 6)]
+    [InlineData(4, 90)]
+    [InlineData(6, 945)]
+    public void TheAnswerTheseControlsUseIsTheOneSectionOnesIdentityGenerates(int order, int answer)
+    {
+        // The two Bernoulli implementations in this umbrella, held against each other through the
+        // only thing that can compare them: the value they imply for pi^n/zeta(n). EvenZetaRatio
+        // runs the recurrence directly; EulerMaclaurinZeta runs its own privately, for corrections
+        // to a sum of reciprocal powers, and the enclosure below is what that produces after a
+        // Pow, a divide and five refinements. Nothing shares code between them.
+        //
+        // ../AGENTS.md section Testing discipline calls cross-checking independent implementations
+        // the strongest correctness test available here, and it is what stops a recurrence written
+        // out twice - which halheinrich/Math#68 forced, RealConstants exposing no surface to reuse -
+        // from being a mistake written out twice.
+        Assert.Equal(BigRational.FromInteger(answer), EvenZetaRatio.Of(order));
+        Assert.True(
+            Control(order).Iterations[^1].Enclosure.Ratio.Contains(EvenZetaRatio.Of(order)),
+            Inv($"The generated value for order {order} fell outside the pipeline's final enclosure."));
     }
 
     [Theory]

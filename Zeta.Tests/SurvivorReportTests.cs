@@ -350,16 +350,26 @@ public sealed class SurvivorReportTests
     public void RefuseOrder_RefusesAnOrderZetaHasNoValueFor(int order) =>
         Assert.NotNull(SurvivorRun.RefuseOrder(order));
 
-    [Fact]
-    public void RefuseOrder_AcceptsTheDefaultAndTheCeiling()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(16)]
+    [InlineData(17)]
+    [InlineData(18)]
+    [InlineData(64)]
+    public void RefuseOrder_PutsNoCeilingOnTheOrder(int order)
     {
-        Assert.Null(SurvivorRun.RefuseOrder(SurvivorRun.DefaultOrder));
-        Assert.Null(SurvivorRun.RefuseOrder(SurvivorRun.MaxOrder));
+        // There was one until halheinrich/Math#68: MaxOrder = 16, refusing anything higher on the
+        // ground that section 1's controls stopped there so nothing above could be checked. False
+        // at every even order without limit - EvenZetaRatioTests asserts 18 and 20 - and the cap
+        // also refused ODD orders for an argument about even ones, which applied consistently
+        // would forbid order 3. Both sides of that are why 17 and 18 are here.
+        Assert.Null(SurvivorRun.RefuseOrder(order));
     }
 
     [Fact]
-    public void RefuseOrder_RefusesPastTheCeilingAndSaysWhy() =>
-        Assert.Contains("positive controls", SurvivorRun.RefuseOrder(SurvivorRun.MaxOrder + 1), StringComparison.Ordinal);
+    public void RefuseOrder_AcceptsTheDefault() =>
+        Assert.Null(SurvivorRun.RefuseOrder(SurvivorRun.DefaultOrder));
 
     [Fact]
     public void Estimate_CountsTheCandidatesOnePrefixAdmits()

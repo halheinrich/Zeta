@@ -112,7 +112,9 @@ internal static class Program
             $"  {SurvivorsCommand + " [order]",-17}  pi^n / zeta(n) reported the way section 2 step 6 says a"));
         notes.WriteLine("                    run reports: the survivor set under a denominator bound");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"                    fixed in advance. Order defaults to {SurvivorRun.DefaultOrder}, ceiling {SurvivorRun.MaxOrder}."));
+            $"                    fixed in advance. Order defaults to {SurvivorRun.DefaultOrder} and has no"));
+        notes.WriteLine("                    ceiling - every even order has a known answer, so a run");
+        notes.WriteLine("                    is refused for its cost or for a bound it cannot reach.");
         notes.WriteLine("                    Two charts go to stdout as ONE SVG - redirect it.");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  {SurvivorsCommand + " [o f l]",-17}  the same, with both ends of the schedule named:"));

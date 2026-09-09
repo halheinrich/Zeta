@@ -172,6 +172,30 @@ Starting later buys a refused decade back, and the default is unchanged because
 a deeper one is a separate judgement about what a first-time reader should wait
 for.
 
+**There is no ceiling on the order, and there was one until
+`halheinrich/Math#68`.** `MaxOrder = 16` refused anything higher because "§ 1's
+positive controls stop there, so nothing above it can be checked against a known
+answer". That is false at every even order without limit: `EvenZetaRatio`
+generates π^2k/ζ(2k) from § 1's identity — `2·(2k)! / ((−1)^(k+1)·B_2k·2^2k)` —
+and reproduces all eight of § 1's listed values, then 18 and 20, and on. The cap
+was a hand-typed list wearing a mathematical reason. Its second justification
+was unsupported too: the denominators run 691, 2, 3617, 43867, 174611 across
+n = 12…20, so there is no cliff at 16 for the even orders to "stop having small
+denominators" at. And it refused *odd* orders for an argument about even ones,
+which applied consistently would forbid order 3.
+
+**The Bernoulli recurrence is written out in `EvenZetaRatio` and should not have
+to be.** `EulerMaclaurinZeta` already computes and caches the even-index
+Bernoulli numbers, through a private method taking a caller-supplied cache, so
+there is no surface to reach — flagged for a `RealConstants` change rather than
+made here, this arc's brief being `Zeta`'s alone. What keeps the duplication from
+being invisible is that the two are cross-checked by construction:
+`EvenZetaRatioTests` holds the generated values against § 1's eight, and
+`PositiveControlTests` asserts the same values are what the pipeline drives its
+enclosure around, through a provider that reaches ζ from reciprocal powers and
+never forms π at all. `../AGENTS.md` § Testing discipline calls that the
+strongest correctness test available here.
+
 **A refusal names which end to move, and holds it as a value.** Ruling 3 on
 `halheinrich/Math#64` came with a live instance: `survivors 10 4 11` was refused,
 the user read "one more decade of schedule is ten times this figure" and had no

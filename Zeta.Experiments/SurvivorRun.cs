@@ -88,13 +88,6 @@ internal static class SurvivorRun
     /// <summary>The zeta order when none is given.</summary>
     public const int DefaultOrder = 2;
 
-    /// <summary>The largest order this command will run.</summary>
-    /// <remarks>
-    /// § 1's positive controls run to 16 because that is where the even orders stop having small
-    /// denominators, so nothing above it would be checked against anything. This is a limit on
-    /// what is worth running rather than on what would work.
-    /// </remarks>
-    public const int MaxOrder = 16;
 
     /// <summary>How many candidates the distance chart follows.</summary>
     /// <remarks>
@@ -376,25 +369,31 @@ internal static class SurvivorRun
     /// <param name="order">The requested order.</param>
     /// <returns>The refusal, or null.</returns>
     /// <remarks>
+    /// <para>
+    /// <b>There is no ceiling here, and there was one until <c>halheinrich/Math#68</c>.</b>
+    /// <c>MaxOrder = 16</c> refused anything higher on the ground that "section 1's positive
+    /// controls stop there, so nothing above it can be checked against a known answer" - false at
+    /// every even order without limit, as <see cref="EvenZetaRatio"/> now generates. It was a
+    /// hand-typed list of eight wearing a mathematical reason, and it refused <i>odd</i> orders
+    /// for an argument about even ones, which applied consistently would forbid order 3 - the
+    /// project's whole research target.
+    /// </para>
+    /// <para>
+    /// What replaces it is the principle <see cref="RefuseSchedule"/> was already arguing one
+    /// method away: a run is refused for what it would cost, once that is known - which is
+    /// <see cref="Refuse"/>'s question - and never for being high.
+    /// </para>
+    /// <para>
     /// A pure function of the argument, so it is held against tests without paying for a run - the
     /// same seam <c>target</c> uses, and for the same reason: an argument path reachable only by
     /// starting a long computation is a path nothing checks.
+    /// </para>
     /// </remarks>
-    public static string? RefuseOrder(int order)
-    {
-        if (order < 2)
-        {
-            return "The order must be at least 2. At s = 1 the series is the harmonic one and does " +
-                "not converge, so there is no zeta(1) to divide by.";
-        }
-
-        return order > MaxOrder
-            ? string.Create(CultureInfo.InvariantCulture,
-                $"Refusing order {order}: this command runs no higher than {MaxOrder}. Section 1's " +
-                $"positive controls stop there, so nothing above it can be checked against a known " +
-                $"answer, and an unchecked exhibit is not worth the wait.")
+    public static string? RefuseOrder(int order) =>
+        order < 2
+            ? "The order must be at least 2. At s = 1 the series is the harmonic one and does " +
+              "not converge, so there is no zeta(1) to divide by."
             : null;
-    }
 
     /// <summary>The reason this schedule will not be run, or null when it will.</summary>
     /// <param name="firstExponent">The first target's exponent, as <c>10^-firstExponent</c>.</param>
