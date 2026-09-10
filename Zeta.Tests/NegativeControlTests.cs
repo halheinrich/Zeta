@@ -26,14 +26,14 @@ namespace HalHeinrich.Numerics.Tests;
 /// Section 2's 2026-09-08 amendment makes the survivor set the criterion, so the sharpest form
 /// this control could take is the direct one: under a denominator bound <c>Q</c>, the survivors of
 /// these enclosures are <i>none</i>, the ratio being irrational. That is strictly stronger than
-/// the exclusion property above, which only ever looks at one candidate per iteration. It is not
-/// written because it cannot be written honestly yet - nothing in <c>Zeta</c> reaches
-/// <c>SurvivorSearch</c>, and the pipeline that would is the reshape held under
-/// <c>halheinrich/Math#65</c>. Choosing <c>Q</c> is also a measurement rather than a guess: this
-/// is already the expensive control, realising about 1.8e-12 and sweeping to denominator 576180,
-/// and section 2's sizing makes an emptiness claim at a <c>Q</c> worth asserting a cost that has
-/// to be measured before it is committed to. Add it with that pipeline, against the shape that
-/// gets kept.
+/// the exclusion property above, which only ever looks at one candidate per iteration. Nothing
+/// structural stands in the way any more: <see cref="SurvivorSetControlTests"/> drives the real
+/// pipeline into <see cref="SurvivorSearch"/> for the positive controls, and the user lifted the
+/// <c>halheinrich/Math#65</c> hold on survivor-set controls on 2026-09-10. What is left is choosing
+/// <c>Q</c>, and that is a measurement rather than a guess: this is already the expensive control,
+/// realising about 1.8e-12 and sweeping to denominator 576180, and section 2's sizing makes an
+/// emptiness claim at a <c>Q</c> worth asserting a cost that has to be measured before it is
+/// committed to. Unwritten because no brief has asked for it yet, not because it cannot be written.
 /// </para>
 /// <para>
 /// <b>The shared engine is not a violation of section 4's independence ruling, and should not be

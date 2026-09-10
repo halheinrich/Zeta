@@ -436,6 +436,12 @@ would have been the same defect in a new place. It is arguably `BigRational`'s
 to offer; that library is published and in another repository, which
 `../AGENTS.md` § Submodule boundary puts out of reach from here.
 
+`EvenZetaRatio` is beside them too: the known answer a control is checked
+against, generated from § 1's identity rather than listed, and not a step of
+the method. It answers what the answer *is*; whether a run can reach or isolate
+it is `SurvivorSearch`'s to decide, and the type offers nothing that would
+decide it — see § Layout.
+
 ### The schedule builder validates its arguments, never the schedule
 
 `TargetSchedule.Decades` emits a strictly decreasing run of powers of ten with
@@ -593,6 +599,13 @@ public static class TargetSchedule
                                                     int lastExponent,
                                                     int step = 1);
 }
+
+public static class EvenZetaRatio
+{
+    public static bool IsKnown(int order);         // even and at least 2
+    public static BigRational Of(int order);       // π^order/ζ(order), exact, lowest terms
+    public static string Format(int order);        // as § 1 lists it: "6", "638512875/691"
+}
 ```
 
 Contracts a caller is held to:
@@ -606,12 +619,17 @@ Contracts a caller is held to:
 - `RatioRefiner` holds a live enumerator over each provider's `Refinements()`,
   so it is disposable and refinement is incremental across every call:
   reaching step *n* costs *n* + 1 pulls in total, not that many per target.
+- `EvenZetaRatio.Of` and `Format` throw `ArgumentOutOfRangeException` for an
+  order `IsKnown` rejects — below 2, or odd. `IsKnown` is the question; the
+  throw is not how to ask it.
 
-Every one of these types is a **sealed class**, not a record struct, because
+Every instance type here is a **sealed class**, not a record struct, because
 none of them has a coherent default. An all-default `RatioEnclosure` would
 claim a quotient by exactly zero. `Approximation` and `RationalCandidate` are
 structs because their defaults *are* meaningful states; these are not that
 case, and they follow `TrendIteration` / `TrendRow` / `TrendMatrix` instead.
+`TargetSchedule` and `EvenZetaRatio` are static classes: pure functions, with
+no state to default.
 
 ## Pitfalls
 
