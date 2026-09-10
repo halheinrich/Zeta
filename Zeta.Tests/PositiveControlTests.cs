@@ -146,12 +146,13 @@ public sealed class PositiveControlTests
         // test's, and a stuck pipeline gets it for nothing. That nothing else is in the set is
         // this one's, and it is the half a stuck pipeline fails: the set is a singleton only once
         // the enclosure is narrow enough to exclude every rival of denominator at or below the
-        // bound, which section 2 sizes at eps < 1/(2Q) for exactly the rational-target case these
-        // controls live in. An enclosure that stops narrowing leaves rivals standing however long
-        // the run goes on. So what is asserted here is that narrowing: the row's cells are the
-        // exact |answer - x_k|, and they fall by sixty orders of magnitude while staying inside an
-        // enclosure that falls with them. The survivor set itself is SurvivorSetControlTests'
-        // assertion, at every even order from 2 to 16.
+        // bound. How narrow is section 2's isolation rule for the rational-target case these
+        // controls live in, stated there once and decided by SurvivorSearch.IsIsolated - no copy
+        // of it is written here to go stale. An enclosure that stops narrowing leaves rivals
+        // standing however long the run goes on. So what is asserted here is that narrowing: the
+        // row's cells are the exact |answer - x_k|, and they fall by sixty orders of magnitude
+        // while staying inside an enclosure that falls with them. The survivor set itself is
+        // SurvivorSetControlTests' assertion, at every even order from 2 to 16.
         RatioRun run = Control(order);
         TrendRow row = Assert.Single(run.Matrix.Rows);
 

@@ -291,10 +291,13 @@ against the full list that share is a few per cent at either bound — measured
 2026-09-09, the solved candidate price came out *negative* on every run and was
 clamped away. What it costs is an assumption stated in the method: both prices
 are measured on the widest enclosure's endpoints and applied to every prefix, and
-narrower enclosures carry larger endpoints, so the prediction understates. It ran
-0.6 to 0.85 of the realised walk across four schedules, and the epilogue prints
-the realised figure beside the prediction so the guard's error is on screen
-rather than on trust.
+narrower enclosures carry larger endpoints, so the prediction is biased low. **It
+is not a consistent understatement, though.** On `survivors 3 4 11` it lands
+about 30% either side of the realised walk from run to run, because the timed
+prediction and the walk both move — the readings, and one far outside that
+spread taken on a busy machine, are in `SurvivorRun.Calibrate`'s remarks. The
+epilogue prints the realised figure beside the prediction so the guard's error
+is on screen rather than on trust.
 
 **The sample warms up on a wall clock, and that is not fussiness.** The runtime
 reaches its optimised tier on a timer as much as on a call count, and the timer

@@ -964,14 +964,18 @@ internal static class SurvivorRun
     /// rather than a rounding error.
     /// </para>
     /// <para>
-    /// <b>What that costs is an assumption, stated here rather than hidden, and it is why this
-    /// guard errs towards admitting.</b> Both prices are measured against the <i>widest</i>
-    /// enclosure's endpoints and then applied to every prefix - and a narrower enclosure carries
-    /// larger endpoints, so the prefixes the sample never touches cost more than it charges for
-    /// them. Measured on this bench 2026-09-09, the prediction came to between 0.6 and 0.85 of the
-    /// realised walk across four schedules. The epilogue prints the realised walk beside the
-    /// prediction for exactly that reason: the guard's own error is on the screen of every run
-    /// rather than something a reader has to take on trust.
+    /// <b>What that costs is an assumption, stated here rather than hidden, and it biases this
+    /// guard towards admitting - by less than the guard's own run-to-run spread.</b> Both prices
+    /// are measured against the <i>widest</i> enclosure's endpoints and then applied to every
+    /// prefix - and a narrower enclosure carries larger endpoints, so the prefixes the sample never
+    /// touches cost more than it charges for them. But the prediction is not a consistent
+    /// understatement, and should not be read as one: six runs of <c>survivors 3 4 11</c> by two
+    /// sessions on 2026-09-10 put it at 0.72, 0.84, 0.85, 0.90, 0.92 and 1.2 of the realised walk -
+    /// about 30% either way - because the timed prediction (110 to 130 s) and the walk itself (122
+    /// to 155 s) both move between runs. A seventh the same day, with builds and tests sharing the
+    /// machine, read 1.8. The epilogue prints the realised walk beside the prediction for exactly
+    /// that reason: the guard's own error is on the screen of every run rather than something a
+    /// reader has to take on trust.
     /// </para>
     /// <para>
     /// <b>Two bounds, a factor of <see cref="SampleSpread"/> apart, because one walk cannot
@@ -1070,7 +1074,7 @@ internal static class SurvivorRun
     /// <para>
     /// <b>Sampled from the walk it prices, and that is what removes the chart's bias rather than
     /// inheriting it.</b> The chart samples the widest enclosure alone and applies the prices to
-    /// every prefix, so it understates - a narrower enclosure carries larger endpoints, and
+    /// every prefix, so it is biased low - a narrower enclosure carries larger endpoints, and
     /// stepping a denominator rounds those endpoints. A deep walk is seeded from the narrowest
     /// enclosure, so a widest-enclosure sample would understate it by exactly the growth that
     /// matters most: over the 3.6 decades measured on <c>halheinrich/Math#64</c> the outer price
