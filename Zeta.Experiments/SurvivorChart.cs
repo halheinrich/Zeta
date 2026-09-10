@@ -198,10 +198,15 @@ internal static class SurvivorChart
             $"In brackets, the null: how many survivors of that denominator a generic target of this " +
             $"precision leaves by chance, 6*eps*q^2/pi^2."), "small");
 
-        Svg.Text(svg, PlotLeft, 182, string.Create(CultureInfo.InvariantCulture,
-            $"Under the whole bound that is {Presentation.Roughly(report.ExpectedUnderBound.Value)} - " +
-            $"and it is that at every precision, since Q = eps^(-1/2) cancels the eps. Near 1 is noise; " +
-            $"a real answer prices far below."), "small");
+        Svg.Text(svg, PlotLeft, 182, report.Bound.IsCapped
+            ? string.Create(CultureInfo.InvariantCulture,
+                $"Under the whole bound that is {Presentation.Roughly(report.ExpectedUnderBound.Value)} - below " +
+                $"6/pi^2, because the budget capped Q under the derived {report.Bound.Derived}. A survivor here " +
+                $"is stronger evidence; an empty set refutes only to Q.")
+            : string.Create(CultureInfo.InvariantCulture,
+                $"Under the whole bound that is {Presentation.Roughly(report.ExpectedUnderBound.Value)} - " +
+                $"and it is that at every precision, since Q = eps^(-1/2) cancels the eps. Near 1 is noise; " +
+                $"a real answer prices far below."), "small");
     }
 
     private static void Collapse(TextWriter svg, SurvivorReport report, double top)

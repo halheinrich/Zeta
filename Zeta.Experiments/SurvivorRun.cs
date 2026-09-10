@@ -310,8 +310,8 @@ internal static class SurvivorRun
             new MachinPi(), request.Order, new EulerMaclaurinZeta(request.Order), schedule, Searcher);
         IReadOnlyList<Approximation> enclosures = SurvivorReport.Distinct(SurvivorReport.EnclosuresOf(run));
 
-        BigInteger bound = SurvivorReport.DerivedBound(enclosures[^1]);
-        string? unreachable = RefuseUnreachableControl(request.Order, bound, mode);
+        BigInteger derived = SurvivorReport.DerivedBound(enclosures[^1]);
+        string? unreachable = RefuseUnreachableControl(request.Order, derived, mode);
         if (unreachable is not null)
         {
             notes.WriteLine();
@@ -319,14 +319,35 @@ internal static class SurvivorRun
             return 2;
         }
 
-        WalkPrice price = Calibrate(enclosures, bound, mode);
+        WalkPrice price = Calibrate(enclosures, derived, mode);
+        SurvivorBound bound;
 
-        SurvivorRefusal? tooDear = Refuse(enclosures, bound, price, mode);
-        if (tooDear is not null)
+        if (mode == SurvivorMode.Deep)
         {
-            notes.WriteLine();
-            notes.WriteLine(tooDear.Value.Message);
-            return 2;
+            // Ruling 5: a deep run is never refused for its cost - its Q comes down to what the
+            // budget affords instead. Which makes the control check above necessary but no longer
+            // sufficient, since a cap can fall below an answer the derived bound reached.
+            bound = Afford(enclosures, derived, price);
+
+            string? unaffordable = RefuseUnaffordableControl(request.Order, bound);
+            if (unaffordable is not null)
+            {
+                notes.WriteLine();
+                notes.WriteLine(unaffordable);
+                return 2;
+            }
+        }
+        else
+        {
+            bound = new SurvivorBound(derived, null);
+
+            SurvivorRefusal? tooDear = Refuse(enclosures, derived, price);
+            if (tooDear is not null)
+            {
+                notes.WriteLine();
+                notes.WriteLine(tooDear.Value.Message);
+                return 2;
+            }
         }
 
         Sizing(notes, run, enclosures, bound, price, mode);
@@ -336,7 +357,7 @@ internal static class SurvivorRun
             ? SurvivorReport.Deep(enclosures, bound, TrackedCap)
             : SurvivorReport.Of(
                 enclosures,
-                bound,
+                derived,
                 TrackedCap,
                 (index, count) => notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
                     $"  enclosure {index}  half-width {Presentation.Magnitude(enclosures[index].MaxError),-9}  " +
@@ -358,7 +379,7 @@ internal static class SurvivorRun
             request.Order,
             clock.Elapsed.TotalSeconds,
             new BigRational(walk.ElapsedTicks, Stopwatch.Frequency),
-            price.Seconds(Size(enclosures, bound, mode)));
+            price.Seconds(Size(enclosures, bound.Q, mode)));
 
         return 0;
     }
@@ -606,7 +627,6 @@ internal static class SurvivorRun
     /// <param name="enclosures">Every enclosure the run will intersect, in order.</param>
     /// <param name="denominatorBound">The derived bound.</param>
     /// <param name="price">What each loop costs here, as <see cref="Calibrate"/> measures it.</param>
-    /// <param name="mode">Which walk is being priced - every prefix, or the final one alone.</param>
     /// <returns>The refusal, or null.</returns>
     /// <remarks>
     /// <para>
@@ -622,30 +642,27 @@ internal static class SurvivorRun
     /// sentence that was true of one end and false of the other.
     /// </para>
     /// <para>
-    /// <b>The two modes turn the knobs differently.</b> A chart walk's cost is dominated by its
-    /// widest prefix, which the first exponent moves and <c>Q</c> does not, so that end is its
-    /// cost knob. A deep walk is the final prefix alone and costs <c>Q</c> denominators whatever
-    /// the first exponent is, so the only end that moves its cost is the last - which is also the
-    /// claim. The refusal says so rather than handing a deep caller advice that buys nothing.
+    /// <b>A chart walk's guard only.</b> A deep run is never refused for its cost - ruling 5 on
+    /// <c>halheinrich/Math#64</c> brings its <c>Q</c> down to what the budget affords instead, and
+    /// <see cref="Afford"/> is that computation. The two are different answers to one budget
+    /// because the two walks have different knobs: the chart's cost is dominated by its widest
+    /// prefix, which the first exponent moves and <c>Q</c> does not, so a chart can be brought
+    /// inside the budget without touching the claim; a deep walk costs <c>Q</c> denominators
+    /// whatever the first exponent is, so the only thing that can bring it inside is a smaller
+    /// <c>Q</c>, and computing that is better than advising it.
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// Either half of <paramref name="price"/> is negative, or <paramref name="mode"/> is not a defined mode.
-    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">Either half of <paramref name="price"/> is negative.</exception>
     public static SurvivorRefusal? Refuse(
         IReadOnlyList<Approximation> enclosures,
         BigInteger denominatorBound,
-        WalkPrice price,
-        SurvivorMode mode)
+        WalkPrice price)
     {
-        if (price.PerDenominator.Sign < 0 || price.PerCandidate.Sign < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(price), price, NegativePriceMessage);
-        }
+        RequirePrice(price);
 
-        WalkSize size = Size(enclosures, denominatorBound, mode);
+        WalkSize size = Size(enclosures, denominatorBound, SurvivorMode.Chart);
 
         return price.Seconds(size) > BigRational.FromInteger(BudgetSeconds)
             ? new SurvivorRefusal(
@@ -653,10 +670,141 @@ internal static class SurvivorRun
                 price,
                 denominatorBound,
                 enclosures.Count,
-                mode,
-                mode == SurvivorMode.Deep ? ScheduleEnd.Last : ScheduleEnd.First,
+                ScheduleEnd.First,
                 ScheduleEnd.Last)
             : null;
+    }
+
+    /// <summary>The bound a deep run walks to: the derived one, or less if that is all the budget buys.</summary>
+    /// <param name="enclosures">Every enclosure the run will intersect, in order.</param>
+    /// <param name="derivedBound">The bound the final enclosure's precision supports.</param>
+    /// <param name="price">What a turn of each loop costs here, as <see cref="Calibrate"/> measures a deep walk.</param>
+    /// <returns>
+    /// Both bounds. The affordable one is the largest <c>q</c> whose deep walk is predicted to fit
+    /// in <see cref="BudgetSeconds"/>, found whether or not it binds so that a run can print how
+    /// much room it had - and null only when nothing the walk does is priced above zero, which
+    /// makes every bound free.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Either half of <paramref name="price"/> is negative, or <paramref name="derivedBound"/> is.
+    /// </exception>
+    /// <remarks>
+    /// <para>
+    /// <b>Ruling 5 on <c>halheinrich/Math#64</c>.</b> <see cref="SurvivorBound"/> carries why a
+    /// smaller <c>Q</c> is sound and what it does to the reading; this is only the arithmetic.
+    /// </para>
+    /// <para>
+    /// <b>Doubling and then bisecting through <see cref="Size"/>, never inverting the cost law.</b>
+    /// The prediction a run prints is <c>price.Seconds(Size(..., q, Deep))</c>, so the cap is the
+    /// largest <c>q</c> at which exactly that expression is within budget - one computation rather
+    /// than a closed form beside it that could drift, the same reason <see cref="SampleBound"/>
+    /// doubles. It is monotone in <c>q</c>, since both counts are, and the search is exact: the
+    /// result fits and one more does not.
+    /// </para>
+    /// <para>
+    /// A pure function of its arguments, so a test can construct the case where the cap binds.
+    /// Nothing in a real run reaches it until about <c>eps = 1e-15</c>, and a test that waited for
+    /// a schedule to produce it would be a long run in a test project.
+    /// </para>
+    /// </remarks>
+    public static SurvivorBound Afford(
+        IReadOnlyList<Approximation> enclosures, BigInteger derivedBound, WalkPrice price)
+    {
+        RequireEnclosures(enclosures);
+        RequirePrice(price);
+        ArgumentOutOfRangeException.ThrowIfNegative(derivedBound);
+
+        BigRational budget = BigRational.FromInteger(BudgetSeconds);
+        bool Fits(BigInteger bound) => price.Seconds(Size(enclosures, bound, SurvivorMode.Deep)) <= budget;
+
+        // Size's candidate count grows with q only when the narrowest enclosure has width, so a
+        // walk costs something at a large enough q exactly when one of the two loops is priced.
+        bool candidatesGrow = enclosures.Min(enclosure => enclosure.MaxError).Sign > 0;
+        if (price.PerDenominator.IsZero && (price.PerCandidate.IsZero || !candidatesGrow))
+        {
+            return new SurvivorBound(derivedBound, null);
+        }
+
+        BigInteger high = BigInteger.One;
+        while (Fits(high))
+        {
+            high *= 2;
+        }
+
+        // Fits(low) and not Fits(high) throughout. A bound of zero walks nothing and always fits.
+        BigInteger low = high / 2;
+        while (high - low > 1)
+        {
+            BigInteger middle = (low + high) / 2;
+
+            if (Fits(middle))
+            {
+                low = middle;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        return new SurvivorBound(derivedBound, low);
+    }
+
+    /// <summary>The reason a capped control cannot find its own answer, or null when it can.</summary>
+    /// <param name="order">The requested order.</param>
+    /// <param name="bound">Where the run's bound came from.</param>
+    /// <returns>The refusal, or null - always null for an odd order, and for a bound nothing capped.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>The hole a cap opens in <see cref="RefuseUnreachableControl"/>.</b> That check reads the
+    /// derived bound, and ruling 5 lets a deep run walk to less. So a derived bound can reach an
+    /// even order's denominator while the budget's does not - and the walk then reports an EMPTY
+    /// survivor set, a false refutation of a true answer, which is the one direction
+    /// <c>../SPEC-rational-ratio.md</c> § 2 forbids. Both checks are needed, because they fail for
+    /// different reasons and are fixed by different things.
+    /// </para>
+    /// <para>
+    /// <b>A message of its own because the other's advice cannot work here.</b> Raising the last
+    /// exponent raises the derived bound, which is not what is short; raising the first does not
+    /// move a deep walk's cost at all. What is short is the budget, or the machine, and the message
+    /// says so rather than naming a knob that is connected to nothing.
+    /// </para>
+    /// </remarks>
+    public static string? RefuseUnaffordableControl(int order, SurvivorBound bound)
+    {
+        if (!EvenZetaRatio.IsKnown(order) || !bound.IsCapped)
+        {
+            return null;
+        }
+
+        BigInteger needed = EvenZetaRatio.ReachableFrom(order);
+
+        return bound.Q < needed
+            ? string.Create(CultureInfo.InvariantCulture,
+                $"Refusing this run: the budget cannot reach its own answer.\n" +
+                $"  the answer   pi^{order}/zeta({order}) = {EvenZetaRatio.Format(order)}, exactly, from " +
+                $"section 1's identity\n" +
+                $"  the bound    the schedule's precision supports Q = {bound.Derived}, which reaches the\n" +
+                $"               answer's denominator {needed} - but the budget of {BudgetSeconds} s affords a\n" +
+                $"               deep walk only to Q = {bound.Q}, and there the answer is not in the\n" +
+                $"               candidate set at all. The survivor set would come back EMPTY - a false\n" +
+                $"               refutation of a true answer, which section 2 forbids in exactly that\n" +
+                $"               direction\n" +
+                $"No schedule change helps. A deep walk costs Q denominators whatever the FIRST exponent\n" +
+                $"is, and the LAST only raises the Q the precision supports, which is not what is short.\n" +
+                $"The price is this machine's, measured before the walk; a faster one reaches further.")
+            : null;
+    }
+
+    /// <summary>Refuses a price with a negative half, which no stopwatch could have produced.</summary>
+    private static void RequirePrice(WalkPrice price)
+    {
+        if (price.PerDenominator.Sign < 0 || price.PerCandidate.Sign < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(price), price, NegativePriceMessage);
+        }
     }
 
     /// <summary>The widest enclosure of a run, which is the one the calibration samples.</summary>
@@ -1056,7 +1204,7 @@ internal static class SurvivorRun
         {
             var clock = Stopwatch.StartNew();
             _ = mode == SurvivorMode.Deep
-                ? SurvivorReport.Deep(enclosures, bound, TrackedCap)
+                ? SurvivorReport.Deep(enclosures, new SurvivorBound(bound, null), TrackedCap)
                 : SurvivorReport.Of(enclosures, bound, TrackedCap);
             clock.Stop();
 
@@ -1091,11 +1239,49 @@ internal static class SurvivorRun
         return false;
     }
 
+    /// <summary>Where <c>Q</c> came from, in the one line the chart's caption carries.</summary>
+    /// <param name="bound">The derived and affordable bounds.</param>
+    /// <param name="finalHalfWidth">The final enclosure's half-width, which the derived bound came from.</param>
+    /// <returns>The line.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>On the picture rather than only in the terminal</b>, because a chart travels: the
+    /// exploration's second graph misled precisely because the cap it was drawn under was not on
+    /// it. So a capped bound says CAPPED and gives both numbers, and an uncapped deep bound still
+    /// says what the budget would have afforded - which is how far the run was from its limit.
+    /// </para>
+    /// <para>
+    /// A pure function, so what the caption claims about a cap is held by a test rather than
+    /// seen only when a run deep enough to trigger it is paid for.
+    /// </para>
+    /// </remarks>
+    public static string BoundLine(SurvivorBound bound, BigRational finalHalfWidth)
+    {
+        string depth = string.Create(CultureInfo.InvariantCulture,
+            $"DenominatorSweep's generic depth at eps = {Presentation.Magnitude(finalHalfWidth)}, the final " +
+            $"enclosure's half-width");
+
+        if (bound.IsCapped)
+        {
+            return string.Create(CultureInfo.InvariantCulture,
+                $"Q = {bound.Q}, CAPPED by the {BudgetSeconds} s budget below floor(eps^(-1/2)) = " +
+                $"{bound.Derived}, {depth}");
+        }
+
+        string derived = string.Create(CultureInfo.InvariantCulture,
+            $"Q = {bound.Q} = floor(eps^(-1/2)), {depth}");
+
+        return bound.Affordable is { } affordable
+            ? string.Create(CultureInfo.InvariantCulture,
+                $"{derived}; the budget would have afforded {affordable}")
+            : derived;
+    }
+
     private static ChartCaption Caption(
         SurvivorRequest request,
         RatioRun run,
         IReadOnlyList<Approximation> enclosures,
-        BigInteger bound)
+        SurvivorBound bound)
     {
         Approximation final = enclosures[^1];
 
@@ -1108,9 +1294,7 @@ internal static class SurvivorRun
             string.Create(CultureInfo.InvariantCulture,
                 $"{request.ScheduleLabel}, {run.Iterations.Count} targets, " +
                 $"{enclosures.Count} distinct enclosures"),
-            string.Create(CultureInfo.InvariantCulture,
-                $"Q = {bound} = floor(eps^(-1/2)), DenominatorSweep's generic depth at " +
-                $"eps = {Presentation.Magnitude(final.MaxError)}, the final enclosure's half-width"));
+            BoundLine(bound, final.MaxError));
     }
 
     /// <summary>Writes what this run is about to do, before it costs anything.</summary>
@@ -1160,22 +1344,40 @@ internal static class SurvivorRun
         TextWriter notes,
         RatioRun run,
         IReadOnlyList<Approximation> enclosures,
-        BigInteger bound,
+        SurvivorBound bound,
         WalkPrice price,
         SurvivorMode mode)
     {
-        WalkSize size = Size(enclosures, bound, mode);
+        WalkSize size = Size(enclosures, bound.Q, mode);
 
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  {run.Iterations.Count} targets realised {enclosures.Count} distinct enclosures; " +
             $"repeats are dropped, since intersecting an enclosure with itself refutes nothing."));
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  Q = {bound}, derived as floor(eps^(-1/2)) from the final half-width " +
+            $"  Q = {bound.Derived}, derived as floor(eps^(-1/2)) from the final half-width " +
             $"{Presentation.Magnitude(enclosures[^1].MaxError)} - the depth a generic sweep reaches."));
 
         if (mode == SurvivorMode.Deep)
         {
-            WalkSize chart = Size(enclosures, bound, SurvivorMode.Chart);
+            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"  a sample of the deep walk itself to q = {price.SmallSample} priced a denominator at " +
+                $"{Presentation.Roughly(price.PerDenominator * Million)} microseconds -"));
+            notes.WriteLine("  one price, since there is almost nothing else in it.");
+            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"  Q = {(bound.Affordable is { } affordable ? affordable.ToString(CultureInfo.InvariantCulture) : "unbounded")}" +
+                $" is what the budget of {BudgetSeconds} s affords at that price, so this run walks to"));
+            notes.WriteLine(bound.IsCapped
+                ? string.Create(CultureInfo.InvariantCulture,
+                    $"  Q = {bound.Q} - CAPPED below the derived bound. Ruling 5: claiming less than the precision")
+                : string.Create(CultureInfo.InvariantCulture,
+                    $"  Q = {bound.Q}, the derived bound, which the budget affords."));
+
+            if (bound.IsCapped)
+            {
+                notes.WriteLine("  supports is always sound, and the epilogue says what the cap does to the reading.");
+            }
+
+            WalkSize chart = Size(enclosures, bound.Q, SurvivorMode.Chart);
 
             notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
                 $"  the walk is ONE pass over all {enclosures.Count} enclosures, seeded from the narrowest: " +
@@ -1184,12 +1386,8 @@ internal static class SurvivorRun
                 $"  and {size.Candidates:N0} candidates, where the chart would walk {chart.Denominators:N0} " +
                 $"and {chart.Candidates:N0}."));
             notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"  a sample of that walk itself to q = {price.SmallSample} priced a denominator at " +
-                $"{Presentation.Roughly(price.PerDenominator * Million)} microseconds -"));
-            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"  one price, since there is almost nothing else in it - so the walk predicts " +
-                $"{Presentation.Roughly(price.Seconds(size))} s against a budget of {BudgetSeconds}."));
-            notes.WriteLine("  The price is this machine's; the answer is not.");
+                $"  It predicts {Presentation.Roughly(price.Seconds(size))} s. The price is this machine's; " +
+                $"the answer is not."));
             notes.WriteLine();
             notes.WriteLine("intersecting, every enclosure at once:");
             return;
@@ -1199,7 +1397,7 @@ internal static class SurvivorRun
             $"  the walk is {size.Denominators:N0} denominators and {size.Candidates:N0} candidates " +
             $"over all {enclosures.Count} prefixes,"));
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  of which the opening step is {Estimate([enclosures[0]], bound, SurvivorMode.Chart):N0}."));
+            $"  of which the opening step is {Estimate([enclosures[0]], bound.Q, SurvivorMode.Chart):N0}."));
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  samples to q = {price.SmallSample} and q = {price.LargeSample} priced a denominator at " +
             $"{Presentation.Roughly(price.PerDenominator * Million)} microseconds"));
@@ -1228,13 +1426,30 @@ internal static class SurvivorRun
         notes.WriteLine("  around 4.5e-9 at this precision, which is what a finding looks like from");
         notes.WriteLine("  the inside.");
         notes.WriteLine();
-        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  Under the whole bound the figure is {Presentation.Roughly(report.ExpectedUnderBound.Value)}, " +
-            $"and it is that at EVERY precision:"));
-        notes.WriteLine("  Q is derived as eps^(-1/2), so the eps and the Q^2 cancel and 6/pi^2 is all");
-        notes.WriteLine("  that is left. Running deeper does not thin the spurious survivors - it only");
-        notes.WriteLine("  gives them larger denominators. So no depth of run makes a bare count into");
-        notes.WriteLine("  evidence.");
+
+        if (report.Bound.IsCapped)
+        {
+            // Ruling 5's reading, which SurvivorBound argues: the null falls with the cap.
+            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"  Under the whole bound the figure is {Presentation.Roughly(report.ExpectedUnderBound.Value)} - " +
+                $"BELOW the 6/pi^2 = 0.61 a derived"));
+            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"  bound gives at every precision, because the budget capped Q at {report.Bound.Q} under the"));
+            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"  {report.Bound.Derived} this precision supports. So a survivor here is STRONGER evidence than"));
+            notes.WriteLine("  the same survivor under the derived bound: fewer spurious ones were possible.");
+        }
+        else
+        {
+            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"  Under the whole bound the figure is {Presentation.Roughly(report.ExpectedUnderBound.Value)}, " +
+                $"and it is that at EVERY precision:"));
+            notes.WriteLine("  Q is derived as eps^(-1/2), so the eps and the Q^2 cancel and 6/pi^2 is all");
+            notes.WriteLine("  that is left. Running deeper does not thin the spurious survivors - it only");
+            notes.WriteLine("  gives them larger denominators. So no depth of run makes a bare count into");
+            notes.WriteLine("  evidence.");
+        }
+
         notes.WriteLine();
         notes.WriteLine("  The estimate prices one enclosure where a run intersects several, so it is");
         notes.WriteLine("  an upper bound on the null and errs towards calling a survivor unremarkable.");
@@ -1243,9 +1458,9 @@ internal static class SurvivorRun
     /// <summary>What the run established, what it did not, and how well its cost was predicted.</summary>
     /// <remarks>
     /// The predicted-to-realised line is printed for both walks so the two cost models can be read
-    /// side by side from real runs: the chart's is known to understate, since it prices every
-    /// prefix at the widest enclosure's endpoints, and the deep walk's is sampled from the walk
-    /// itself precisely so that it should not.
+    /// side by side from real runs. The chart's prices every prefix at the widest enclosure's
+    /// endpoints and has been measured anywhere from 0.6 to 1.2 of its walk; the deep walk's is
+    /// sampled from the walk itself, and ran 0.89 to 0.94 across four schedules on 2026-09-10.
     /// </remarks>
     private static void Epilogue(
         TextWriter notes,
@@ -1276,6 +1491,14 @@ internal static class SurvivorRun
             notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
                 $"  Nothing of denominator at or below {report.DenominatorBound} survives every enclosure."));
             notes.WriteLine("  That is a refutation, and it is the strongest result this bench produces.");
+
+            if (report.Bound.IsCapped)
+            {
+                notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                    $"  But a NARROWER one than this precision supports: the budget capped Q at {report.Bound.Q},"));
+                notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                    $"  so denominators from there to the derived {report.Bound.Derived} were never tried."));
+            }
         }
         else
         {
@@ -1307,9 +1530,22 @@ internal static class SurvivorRun
 
         notes.WriteLine();
         notes.WriteLine("  The axis is denominators. That is SurvivorSearch's own axis - it takes a");
-        notes.WriteLine("  largest denominator - and Q is set to the depth a generic DenominatorSweep");
-        notes.WriteLine("  would have reached at this precision. That is section 2's sizing law for");
-        notes.WriteLine("  that searcher, not a sweep this run performed: it performs none, since a");
+
+        if (report.Bound.IsCapped)
+        {
+            notes.WriteLine("  largest denominator - and Q is the smaller of two figures: the depth a");
+            notes.WriteLine("  generic DenominatorSweep would have reached at this precision, and what the");
+            notes.WriteLine("  budget affords. The budget's was smaller. The first is section 2's sizing");
+        }
+        else
+        {
+            notes.WriteLine("  largest denominator - and Q is set to the depth a generic DenominatorSweep");
+            notes.WriteLine("  would have reached at this precision. That is section 2's sizing law for");
+        }
+
+        notes.WriteLine(report.Bound.IsCapped
+            ? "  law for that searcher, not a sweep this run performed: it performs none, since a"
+            : "  that searcher, not a sweep this run performed: it performs none, since a");
         notes.WriteLine("  survivor set is what decides and the trend matrix is presentation.");
         notes.WriteLine();
         notes.WriteLine("WHAT IT DOES NOT");

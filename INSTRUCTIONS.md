@@ -342,6 +342,25 @@ times the realised walk. `DeepSampleWarmUpSeconds` is one second, and it errs
 long on purpose: a sample read too early over-prices, which admits less rather
 than more.
 
+**A deep run is never refused for its cost; its `Q` comes down instead.**
+Ruling 5: `Q` is the smaller of the derived bound and the largest the budget
+affords, and `SurvivorBound` carries both. `SPEC-rational-ratio.md` § 2 states
+`eps < H^-2` as a sufficient condition on the error, not as a formula for `Q`,
+so claiming less than the precision supports is always sound, and the caller
+still never picks `Q`. `SurvivorRun.Afford` doubles and then bisects through
+`Size`, the expression the printed prediction uses, so the cap and the prediction
+are one computation. Both numbers are printed, on stderr and in the SVG caption,
+because the cap changes the reading: the null falls below 6/π², so a survivor is
+*stronger* evidence and an empty set is a *narrower* refutation.
+`Refuse` is the chart's guard alone.
+
+**A cap opens a hole the unreachable-control check does not cover.** That check
+reads the derived bound, and a cap can fall below an even order's denominator
+that the derived bound reached, which would print an empty set as a false
+refutation. `RefuseUnaffordableControl` re-checks the capped `Q`, and its advice
+differs because the budget is what's short: no schedule change helps a deep
+walk, whose cost the first exponent does not move.
+
 ### Presentation lives here, not in the library
 
 Ruled in step 6c, the first consumer to need it. Both consumers are inside

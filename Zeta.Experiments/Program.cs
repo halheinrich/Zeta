@@ -188,6 +188,8 @@ internal static class Program
         notes.WriteLine("  gives up is every picture that needs a shorter prefix. Its walk is about Q");
         notes.WriteLine("  denominators and almost nothing else, so the first exponent does not move");
         notes.WriteLine("  its cost at all; it is priced by timing a sample of that walk itself.");
+        notes.WriteLine("  And it is never refused for that cost: where the derived Q would pass the");
+        notes.WriteLine("  budget, it walks to the largest Q the budget affords and prints both.");
         notes.WriteLine();
         notes.WriteLine("worth running");
         notes.WriteLine();
@@ -215,6 +217,12 @@ internal static class Program
             $"  {SurvivorsCommand + " 3 4 11",-16}  what starting later buys: Q = 741,455, some 64 times"));
         notes.WriteLine("                    the default's bound, in about two minutes and on a");
         notes.WriteLine("                    collapse chart of eight enclosures rather than seven");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {DeepCommand + " 3 4 11",-16}  the same survivor set as that, without the charts, in"));
+        notes.WriteLine("                    about six seconds");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {DeepCommand + " 3 5 14",-16}  Q = 23,726,566, about four minutes - and one decade"));
+        notes.WriteLine("                    further, the budget caps Q rather than refusing the run");
         notes.WriteLine();
     }
 }

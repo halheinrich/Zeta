@@ -552,7 +552,7 @@ public sealed class SurvivorReportTests
     /// <summary>A run priced past the budget, so a test can read what the refusal says about it.</summary>
     private static SurvivorRefusal Refused(BigInteger bound, WalkPrice? price = null)
     {
-        SurvivorRefusal? refusal = SurvivorRun.Refuse(Wide, bound, price ?? CandidateMicrosecond, SurvivorMode.Chart);
+        SurvivorRefusal? refusal = SurvivorRun.Refuse(Wide, bound, price ?? CandidateMicrosecond);
 
         Assert.NotNull(refusal);
         return refusal.Value;
@@ -563,8 +563,8 @@ public sealed class SurvivorReportTests
     {
         IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
 
-        Assert.Null(SurvivorRun.Refuse(enclosures, 100, CandidateMicrosecond, SurvivorMode.Chart));
-        Assert.NotNull(SurvivorRun.Refuse(enclosures, BigInteger.Pow(10, 9), CandidateMicrosecond, SurvivorMode.Chart));
+        Assert.Null(SurvivorRun.Refuse(enclosures, 100, CandidateMicrosecond));
+        Assert.NotNull(SurvivorRun.Refuse(enclosures, BigInteger.Pow(10, 9), CandidateMicrosecond));
     }
 
     [Fact]
@@ -579,8 +579,8 @@ public sealed class SurvivorReportTests
         WalkPrice dearer = CandidateMicrosecond with { PerCandidate = CandidateMicrosecond.PerCandidate * 5 };
 
         Assert.Equal(100_000_000, SurvivorRun.Size(enclosures, 100_000, SurvivorMode.Chart).Candidates);
-        Assert.Null(SurvivorRun.Refuse(enclosures, 100_000, CandidateMicrosecond, SurvivorMode.Chart));
-        Assert.NotNull(SurvivorRun.Refuse(enclosures, 100_000, dearer, SurvivorMode.Chart));
+        Assert.Null(SurvivorRun.Refuse(enclosures, 100_000, CandidateMicrosecond));
+        Assert.NotNull(SurvivorRun.Refuse(enclosures, 100_000, dearer));
     }
 
     [Fact]
@@ -594,8 +594,8 @@ public sealed class SurvivorReportTests
         IReadOnlyList<Approximation> forty = [.. Enumerable.Repeat(sliver, 40)];
 
         Assert.Equal(BigInteger.Zero, SurvivorRun.Size(forty, 40_000_000, SurvivorMode.Chart).Candidates);
-        Assert.Null(SurvivorRun.Refuse(forty, 40_000_000, CandidateMicrosecond, SurvivorMode.Chart));
-        Assert.NotNull(SurvivorRun.Refuse(forty, 40_000_000, DenominatorMicrosecond, SurvivorMode.Chart));
+        Assert.Null(SurvivorRun.Refuse(forty, 40_000_000, CandidateMicrosecond));
+        Assert.NotNull(SurvivorRun.Refuse(forty, 40_000_000, DenominatorMicrosecond));
     }
 
     [Fact]
@@ -607,7 +607,7 @@ public sealed class SurvivorReportTests
         Approximation sliver = At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 20));
 
         Assert.Null(SurvivorRun.Refuse(
-            [sliver], BigInteger.Pow(10, 12), new WalkPrice(BigRational.Zero, BigRational.Zero, 0, 0), SurvivorMode.Chart));
+            [sliver], BigInteger.Pow(10, 12), new WalkPrice(BigRational.Zero, BigRational.Zero, 0, 0)));
     }
 
     [Fact]
@@ -616,9 +616,9 @@ public sealed class SurvivorReportTests
         IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
 
         Assert.Throws<ArgumentOutOfRangeException>(() => SurvivorRun.Refuse(
-            enclosures, 100, CandidateMicrosecond with { PerCandidate = -CandidateMicrosecond.PerCandidate }, SurvivorMode.Chart));
+            enclosures, 100, CandidateMicrosecond with { PerCandidate = -CandidateMicrosecond.PerCandidate }));
         Assert.Throws<ArgumentOutOfRangeException>(() => SurvivorRun.Refuse(
-            enclosures, 100, DenominatorMicrosecond with { PerDenominator = -DenominatorMicrosecond.PerDenominator }, SurvivorMode.Chart));
+            enclosures, 100, DenominatorMicrosecond with { PerDenominator = -DenominatorMicrosecond.PerDenominator }));
     }
 
     [Fact]
@@ -710,8 +710,8 @@ public sealed class SurvivorReportTests
         BigInteger shipped = SurvivorReport.DerivedBound(At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 8)));
         BigInteger deeper = SurvivorReport.DerivedBound(At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 12)));
 
-        Assert.Null(SurvivorRun.Refuse(enclosures, shipped, CandidateMicrosecond, SurvivorMode.Chart));
-        Assert.NotNull(SurvivorRun.Refuse(enclosures, deeper, CandidateMicrosecond, SurvivorMode.Chart));
+        Assert.Null(SurvivorRun.Refuse(enclosures, shipped, CandidateMicrosecond));
+        Assert.NotNull(SurvivorRun.Refuse(enclosures, deeper, CandidateMicrosecond));
     }
 
     // ---------- the two loops, counted apart ----------
@@ -1068,7 +1068,7 @@ public sealed class SurvivorReportTests
             (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[index];
 
             SurvivorReport chart = SurvivorReport.Of(enclosures, bound, Cap);
-            SurvivorReport deep = SurvivorReport.Deep(enclosures, bound, Cap);
+            SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap);
 
             Assert.Equal(chart.Survivors, deep.Survivors);
             Assert.Equal(chart.Counts[^1], deep.SurvivorCount);
@@ -1094,7 +1094,7 @@ public sealed class SurvivorReportTests
         BigInteger bound = SurvivorReport.DerivedBound(enclosures[^1]);
 
         SurvivorReport chart = SurvivorReport.Of(enclosures, bound, Cap);
-        SurvivorReport deep = SurvivorReport.Deep(enclosures, bound, Cap);
+        SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap);
 
         Assert.True(enclosures.Count > 1, "The run must realise more than one enclosure to have prefixes at all.");
         Assert.Equal(chart.Survivors, deep.Survivors);
@@ -1109,7 +1109,7 @@ public sealed class SurvivorReportTests
         (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[2];
         var counting = new CountingWalk();
 
-        SurvivorReport.Deep(enclosures, bound, Cap, counting.Walk);
+        SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, counting.Walk);
 
         Assert.Single(counting.Calls);
         Assert.Equal(enclosures, counting.Calls[0]);
@@ -1140,7 +1140,7 @@ public sealed class SurvivorReportTests
         // walk deep deletes. Asserted on the value the chart and the epilogue both render from.
         (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[0];
 
-        SurvivorReport deep = SurvivorReport.Deep(enclosures, bound, Cap);
+        SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap);
 
         Assert.Equal([SurvivorPanel.Collapse, SurvivorPanel.NearestExcluded], deep.Omitted);
         Assert.Empty(deep.Counts);
@@ -1163,7 +1163,7 @@ public sealed class SurvivorReportTests
         (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[0];
 
         SurvivorReport chart = SurvivorReport.Of(enclosures, bound, Cap);
-        SurvivorReport deep = SurvivorReport.Deep(enclosures, bound, Cap);
+        SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap);
 
         Assert.Contains(Ratio(11, 2), chart.Tracked);
         Assert.Equal([BigRational.FromInteger(6)], deep.Tracked);
@@ -1172,20 +1172,26 @@ public sealed class SurvivorReportTests
     [Fact]
     public void Deep_RefusesWhatOfRefuses()
     {
-        Assert.Throws<ArgumentException>(() => SurvivorReport.Deep([], 10, Cap));
+        Assert.Throws<ArgumentException>(() => SurvivorReport.Deep([], Uncapped(10), Cap));
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => SurvivorReport.Deep([At(BigRational.FromInteger(6), 1, 2)], 10, 0));
+            () => SurvivorReport.Deep([At(BigRational.FromInteger(6), 1, 2)], Uncapped(10), 0));
     }
 
-    /// <summary>A walk that records every list of enclosures it is handed, then does the real walk.</summary>
+    /// <summary>A bound nothing capped, which is every deep report until ruling 5's tests below.</summary>
+    private static SurvivorBound Uncapped(BigInteger derived) => new(derived, null);
+
+    /// <summary>A walk that records every list of enclosures and every bound it is handed, then does the real walk.</summary>
     private sealed class CountingWalk
     {
         public List<Approximation[]> Calls { get; } = [];
+
+        public List<BigInteger> Bounds { get; } = [];
 
         public IEnumerable<BigRational> Walk(IEnumerable<Approximation> enclosures, BigInteger denominatorBound)
         {
             Approximation[] given = [.. enclosures];
             Calls.Add(given);
+            Bounds.Add(denominatorBound);
 
             return SurvivorSearch.Survivors(given, denominatorBound);
         }
@@ -1223,31 +1229,240 @@ public sealed class SurvivorReportTests
     }
 
     [Fact]
-    public void Refuse_PricesTheDeepWalkAndNotTheChart()
+    public void Afford_PricesTheDeepWalkAndNotTheChart()
     {
         // At Q = 10^6 the chart's opening prefix holds 1e-2 * 1e12 = 1e10 candidates - three hours
-        // at a microsecond each. The deep walk holds none of them. A deep guard that priced the
-        // chart would refuse exactly the run deep mode exists to make.
+        // at a microsecond each - and the chart is refused. The deep walk holds none of them, so
+        // the budget affords the whole derived bound. A cap that priced the chart would cut Q for
+        // the cost of the walk deep mode exists to skip.
         BigInteger bound = BigInteger.Pow(10, 6);
 
-        Assert.NotNull(SurvivorRun.Refuse(DearChartCheapTail, bound, CandidateMicrosecond, SurvivorMode.Chart));
-        Assert.Null(SurvivorRun.Refuse(DearChartCheapTail, bound, CandidateMicrosecond, SurvivorMode.Deep));
+        SurvivorBound deep = SurvivorRun.Afford(DearChartCheapTail, bound, CandidateMicrosecond);
+
+        Assert.NotNull(SurvivorRun.Refuse(DearChartCheapTail, bound, CandidateMicrosecond));
+        Assert.False(deep.IsCapped);
+        Assert.Equal(bound, deep.Q);
+        Assert.True(deep.Affordable > bound);
+    }
+
+    // ---------- ruling 5: the smaller of derived and affordable, and both reported ----------
+
+    [Fact]
+    public void Afford_CapsWhereTheBudgetBindsAndKeepsBoth()
+    {
+        // The case no real schedule reaches until about eps = 1e-15, constructed rather than
+        // waited for. A microsecond a denominator and a 300 s budget afford exactly 3e8
+        // denominators; the precision supports 1e9. Q is the smaller, and the larger is kept
+        // beside it, because a reader cannot interpret a capped run without both.
+        BigInteger derived = BigInteger.Pow(10, 9);
+
+        SurvivorBound bound = SurvivorRun.Afford(DearChartCheapTail, derived, DenominatorMicrosecond);
+
+        Assert.True(bound.IsCapped);
+        Assert.Equal(derived, bound.Derived);
+        Assert.Equal(300_000_000, bound.Affordable);
+        Assert.Equal(300_000_000, bound.Q);
     }
 
     [Fact]
-    public void Refuse_NamesTheLastExponentAsADeepWalksOnlyKnob()
+    public void Afford_LeavesAnAffordableDerivedBoundWhereItIs()
     {
-        // A deep walk costs Q denominators whatever the first exponent is, so the chart's advice -
-        // raise the first end - would point a deep caller at a knob connected to nothing. Its cost
-        // knob and its claim knob are the same end. Asserted on the values, as the chart's are.
-        SurvivorRefusal? refusal = SurvivorRun.Refuse(
-            DearChartCheapTail, BigInteger.Pow(10, 9), DenominatorMicrosecond, SurvivorMode.Deep);
+        // Below the cap the derived bound stands and nothing about the run changes - but the
+        // affordable figure is still found, so a run can say how much room it had.
+        BigInteger derived = BigInteger.Pow(10, 6);
 
+        SurvivorBound bound = SurvivorRun.Afford(DearChartCheapTail, derived, DenominatorMicrosecond);
+
+        Assert.False(bound.IsCapped);
+        Assert.Equal(derived, bound.Q);
+        Assert.Equal(300_000_000, bound.Affordable);
+    }
+
+    [Fact]
+    public void Afford_FindsTheLargestBoundThatFitsAndNoLarger()
+    {
+        // Both loops priced and the inner one live, so the cost is a quadratic in q with a floor in
+        // it: nothing a closed form would get right to the unit. The search goes through Size, the
+        // same expression the prediction prints, so the answer fits and one more does not.
+        IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
+        var price = new WalkPrice(new BigRational(7, 1_000_000), new BigRational(3, 1_000_000), 0, 0);
+        BigRational budget = BigRational.FromInteger(SurvivorRun.BudgetSeconds);
+
+        BigInteger affordable = SurvivorRun.Afford(enclosures, BigInteger.Pow(10, 12), price).Q;
+
+        Assert.True(price.Seconds(SurvivorRun.Size(enclosures, affordable, SurvivorMode.Deep)) <= budget);
+        Assert.True(price.Seconds(SurvivorRun.Size(enclosures, affordable + 1, SurvivorMode.Deep)) > budget);
+    }
+
+    [Fact]
+    public void Afford_CapsNothingWhereNothingIsPriced()
+    {
+        // A zero price is what Calibrate returns for a sample with nothing in it, and it makes
+        // every bound free; so does a candidate price on a walk that can admit no candidates.
+        // Neither may loop looking for a limit that does not exist.
+        BigInteger derived = BigInteger.Pow(10, 9);
+        var free = new WalkPrice(BigRational.Zero, BigRational.Zero, 0, 0);
+
+        SurvivorBound unpriced = SurvivorRun.Afford(DearChartCheapTail, derived, free);
+        SurvivorBound exact = SurvivorRun.Afford(
+            [Approximation.Exact(BigRational.FromInteger(6))], derived, CandidateMicrosecond);
+
+        Assert.Null(unpriced.Affordable);
+        Assert.Equal(derived, unpriced.Q);
+        Assert.Null(exact.Affordable);
+        Assert.False(exact.IsCapped);
+    }
+
+    [Fact]
+    public void Afford_RefusesWhatCannotBePriced()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => SurvivorRun.Afford(
+            DearChartCheapTail, 100, DenominatorMicrosecond with { PerDenominator = -DenominatorMicrosecond.PerDenominator }));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => SurvivorRun.Afford(DearChartCheapTail, -1, DenominatorMicrosecond));
+        Assert.Throws<ArgumentException>(() => SurvivorRun.Afford([], 100, DenominatorMicrosecond));
+    }
+
+    [Theory]
+    [InlineData(1000, 400, 400, true)]
+    [InlineData(1000, 1000, 1000, false)]
+    [InlineData(1000, 5000, 1000, false)]
+    public void SurvivorBound_WalksToTheSmallerAndSaysWhichSetIt(
+        int derived, int affordable, int q, bool capped)
+    {
+        var bound = new SurvivorBound(derived, affordable);
+
+        Assert.Equal(q, bound.Q);
+        Assert.Equal(capped, bound.IsCapped);
+    }
+
+    [Fact]
+    public void SurvivorBound_IsTheDerivedOneWhenNothingCapsIt()
+    {
+        var bound = new SurvivorBound(1000, null);
+
+        Assert.Equal(1000, bound.Q);
+        Assert.False(bound.IsCapped);
+    }
+
+    [Fact]
+    public void Deep_WalksToTheCappedBound()
+    {
+        (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[2];
+        var counting = new CountingWalk();
+
+        SurvivorReport report = SurvivorReport.Deep(enclosures, new SurvivorBound(bound, 100), Cap, counting.Walk);
+
+        Assert.Equal([new BigInteger(100)], counting.Bounds);
+        Assert.Equal(100, report.DenominatorBound);
+        Assert.True(report.Bound.IsCapped);
+    }
+
+    [Fact]
+    public void ExpectedUnderBound_FallsWithTheCap()
+    {
+        // The null's cancellation needs Q = eps^(-1/2), and a cap breaks it: halve Q and the
+        // figure is a quarter of 6/pi^2. That is why a survivor under a cap is stronger evidence,
+        // and the report carries the bound so its readers can say so.
+        Approximation enclosure = At(BigRational.FromInteger(6), 1, 10_000);
+        BigInteger derived = SurvivorReport.DerivedBound(enclosure);
+
+        SurvivorReport uncapped = SurvivorReport.Deep([enclosure], new SurvivorBound(derived, null), Cap);
+        SurvivorReport capped = SurvivorReport.Deep([enclosure], new SurvivorBound(derived, derived / 2), Cap);
+
+        Assert.Equal(SurvivorReport.ExpectedSurvivors(BigRational.One, 1).Value, uncapped.ExpectedUnderBound.Value);
+        Assert.Equal(uncapped.ExpectedUnderBound.Value / 4, capped.ExpectedUnderBound.Value);
+    }
+
+    // ---------- the control a cap could make unreachable ----------
+
+    [Fact]
+    public void RefuseUnaffordableControl_RefusesACapBelowTheAnswersDenominator()
+    {
+        // The hole ruling 5 opens. The derived bound reaches order 18's 43,867 and passes
+        // RefuseUnreachableControl; the cap does not, and a walk to it would return an EMPTY set -
+        // a false refutation of a true answer. The advice must not be the unreachable check's,
+        // since raising the last exponent raises the bound that is not short.
+        var bound = new SurvivorBound(100_000, 40_000);
+
+        string? refusal = SurvivorRun.RefuseUnaffordableControl(18, bound);
+
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(18, bound.Derived, SurvivorMode.Deep));
         Assert.NotNull(refusal);
-        Assert.Equal(SurvivorMode.Deep, refusal.Value.Mode);
-        Assert.Equal(ScheduleEnd.Last, refusal.Value.CostKnob);
-        Assert.Equal(ScheduleEnd.Last, refusal.Value.ClaimKnob);
-        Assert.DoesNotContain("Raise the FIRST exponent", refusal.Value.Message, StringComparison.Ordinal);
+        Assert.Contains("EMPTY", refusal, StringComparison.Ordinal);
+        Assert.Contains("40000", refusal, StringComparison.Ordinal);
+        Assert.Contains("100000", refusal, StringComparison.Ordinal);
+        Assert.DoesNotContain("Raise the LAST", refusal, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RefuseUnaffordableControl_TurnsOnTheAnswersOwnDenominator()
+    {
+        Assert.Null(SurvivorRun.RefuseUnaffordableControl(18, new SurvivorBound(100_000, 43_867)));
+        Assert.NotNull(SurvivorRun.RefuseUnaffordableControl(18, new SurvivorBound(100_000, 43_866)));
+    }
+
+    [Fact]
+    public void RefuseUnaffordableControl_SaysNothingWhereNoCapOrNoAnswerExists()
+    {
+        // No cap, no new hole: the derived bound was already checked. And an odd order has no
+        // denominator to fall short of, which is the question the bench exists to ask.
+        Assert.Null(SurvivorRun.RefuseUnaffordableControl(18, new SurvivorBound(100, null)));
+        Assert.Null(SurvivorRun.RefuseUnaffordableControl(3, new SurvivorBound(100_000, 1)));
+    }
+
+    // ---------- what the picture says about the bound ----------
+
+    [Fact]
+    public void BoundLine_PutsTheCapAndBothBoundsOnTheChart()
+    {
+        // A chart travels, and the exploration's second graph misled because its cap was not on
+        // it. A capped caption carries the word and both numbers.
+        string line = SurvivorRun.BoundLine(new SurvivorBound(32_000_000, 24_000_000), new BigRational(1, 1_000_000));
+
+        Assert.Contains("CAPPED", line, StringComparison.Ordinal);
+        Assert.Contains("Q = 24000000", line, StringComparison.Ordinal);
+        Assert.Contains("32000000", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BoundLine_SaysWhatAnUncappedDeepRunCouldHaveAfforded()
+    {
+        string line = SurvivorRun.BoundLine(new SurvivorBound(741_455, 40_000_000), new BigRational(1, 1_000_000));
+
+        Assert.DoesNotContain("CAPPED", line, StringComparison.Ordinal);
+        Assert.Contains("Q = 741455 = floor(eps^(-1/2))", line, StringComparison.Ordinal);
+        Assert.Contains("afforded 40000000", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BoundLine_LeavesTheChartsCaptionAsItWas()
+    {
+        // A chart run is never capped and prices nothing as a cap, so its caption is the line it
+        // has always been.
+        Assert.Equal(
+            "Q = 11585 = floor(eps^(-1/2)), DenominatorSweep's generic depth at eps = 1e-8.00, " +
+            "the final enclosure's half-width",
+            SurvivorRun.BoundLine(new SurvivorBound(11_585, null), new BigRational(1, 100_000_000)));
+    }
+
+    [Fact]
+    public void Chart_SaysUnderACapThatTheNullIsNotTheUsualOne()
+    {
+        // The chart's heading claims the null is 6/pi^2 "at every precision". Under a cap that is
+        // false, and a picture repeating it would misstate the one figure a survivor is read
+        // against.
+        Approximation enclosure = At(BigRational.FromInteger(6), 1, 10_000);
+        SurvivorReport report = SurvivorReport.Deep([enclosure], new SurvivorBound(100, 50), Cap);
+
+        using var document = new StringWriter(CultureInfo.InvariantCulture);
+        SurvivorChart.Write(document, report, new ChartCaption(
+            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", "SurvivorSearch", "1e-4", "Q = 50"));
+
+        string drawn = document.ToString();
+
+        Assert.DoesNotContain("at every precision", drawn, StringComparison.Ordinal);
+        Assert.Contains("capped Q under the derived 100", drawn, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1349,7 +1564,7 @@ public sealed class SurvivorReportTests
         // is a heading for every panel Omitted names. One line for the half-width and one per
         // survivor followed is all a deep picture has.
         (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[0];
-        SurvivorReport report = SurvivorReport.Deep(enclosures, bound, Cap);
+        SurvivorReport report = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap);
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(

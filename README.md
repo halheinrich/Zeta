@@ -194,6 +194,13 @@ silence. Its walk is about `Q` denominators and almost nothing else, so the firs
 exponent does not move its cost at all, and it is priced by timing a sample of
 that walk itself.
 
+`deep` is never refused for its cost. When the derived `Q` would take more than
+the five-minute budget, it walks to the largest `Q` the budget affords instead,
+and prints both numbers, on the terminal and on the chart. Claiming less than
+the precision supports is always sound. It does change the reading, and the
+output says how: under a cap the null falls below 6/π², so a survivor is stronger
+evidence and an empty set refutes less than the precision would have supported.
+
 ## Building
 
 **This repository does not build standalone.** It references `RealConstants`

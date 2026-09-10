@@ -113,7 +113,7 @@ internal sealed class SurvivorReport
         long survivorCount,
         BigRational[] survivors,
         BigRational[] tracked,
-        BigInteger denominatorBound,
+        SurvivorBound bound,
         SurvivorPanel[] omitted)
     {
         this.enclosures = enclosures;
@@ -122,7 +122,7 @@ internal sealed class SurvivorReport
         this.tracked = tracked;
         this.omitted = omitted;
         SurvivorCount = survivorCount;
-        DenominatorBound = denominatorBound;
+        Bound = bound;
     }
 
     /// <summary>Gets the enclosures the intersection ran over, in order.</summary>
@@ -211,8 +211,17 @@ internal sealed class SurvivorReport
     /// </remarks>
     public IReadOnlyList<BigRational> Tracked => tracked;
 
-    /// <summary>Gets the largest denominator considered.</summary>
-    public BigInteger DenominatorBound { get; }
+    /// <summary>Gets the largest denominator considered, which is <see cref="Bound"/>'s <see cref="SurvivorBound.Q"/>.</summary>
+    public BigInteger DenominatorBound => Bound.Q;
+
+    /// <summary>Gets where the denominator bound came from: the precision, or the budget below it.</summary>
+    /// <remarks>
+    /// Carried on the report rather than beside it because two things drawn from the report read
+    /// differently under a cap - the null, which falls below <c>6/pi^2</c>, and what an empty set
+    /// refutes - and a chart that travels away from its run must still be able to say which.
+    /// A chart walk is never capped: it refuses on cost instead.
+    /// </remarks>
+    public SurvivorBound Bound { get; }
 
     /// <summary>
     /// Gets how many survivors a generic target of this precision would leave under the whole
@@ -224,6 +233,11 @@ internal sealed class SurvivorReport
     /// <c>Q^2</c> cancel and nothing is left that depends on how deep the run went. What follows
     /// from that about reading <see cref="SurvivorCount"/> is
     /// <c>../SPEC-rational-ratio.md</c> § 1's and is not argued again here.
+    /// <para>
+    /// <b>Below that under a cap.</b> When <see cref="Bound"/> is capped, <c>Q</c> sits under
+    /// <c>eps^(-1/2)</c>, the cancellation is incomplete, and the figure is
+    /// <c>6/pi^2</c> times the square of how far the cap fell short.
+    /// </para>
     /// </remarks>
     public Approximation ExpectedUnderBound => ExpectedAt(DenominatorBound);
 
@@ -457,20 +471,24 @@ internal sealed class SurvivorReport
             counts[^1],
             [.. standing],
             Follow(standing, nearest, trackedCap),
-            denominatorBound,
+            new SurvivorBound(denominatorBound, null),
             []);
     }
 
     /// <summary>Intersects every enclosure in one walk, producing the survivor set and nothing that needs a prefix.</summary>
     /// <param name="enclosures">The enclosures, in order. At least one.</param>
-    /// <param name="denominatorBound">The largest denominator to consider.</param>
+    /// <param name="bound">
+    /// Where the bound came from; the walk runs to its <see cref="SurvivorBound.Q"/>, which a
+    /// budget may have capped below the derived depth.
+    /// </param>
     /// <param name="trackedCap">How many survivors the distance chart may follow. At least one.</param>
     /// <param name="walk">The walk to call, once; <see cref="SurvivorSearch.Survivors"/> when null.</param>
     /// <returns>The report, with <see cref="Omitted"/> naming the two panels a single walk cannot produce.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="denominatorBound"/> is negative, or <paramref name="trackedCap"/> is below one.
+    /// <paramref name="bound"/>'s <see cref="SurvivorBound.Q"/> is negative, or
+    /// <paramref name="trackedCap"/> is below one.
     /// </exception>
     /// <remarks>
     /// <para>
@@ -496,7 +514,7 @@ internal sealed class SurvivorReport
     /// </remarks>
     public static SurvivorReport Deep(
         IReadOnlyList<Approximation> enclosures,
-        BigInteger denominatorBound,
+        SurvivorBound bound,
         int trackedCap,
         SurvivorWalk? walk = null)
     {
@@ -506,7 +524,7 @@ internal sealed class SurvivorReport
         long count = 0;
         var standing = new List<BigRational>();
 
-        foreach (BigRational survivor in walk(enclosures, denominatorBound))
+        foreach (BigRational survivor in walk(enclosures, bound.Q))
         {
             count++;
 
@@ -522,7 +540,7 @@ internal sealed class SurvivorReport
             count,
             [.. standing],
             Follow(standing, [], trackedCap),
-            denominatorBound,
+            bound,
             [.. DeepOmits]);
     }
 
