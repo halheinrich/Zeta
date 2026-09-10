@@ -10,15 +10,16 @@ namespace HalHeinrich.Numerics.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Three of a set that no longer has a last member, and the rest are held rather than
-/// forgotten.</b> That row was widened on 2026-09-08 to the even n = 2...16 and again on 2026-09-09
+/// <b>Three of a set that no longer has a last member, and section 4's criterion is asserted
+/// elsewhere.</b> That row was widened on 2026-09-08 to the even n = 2...16 and again on 2026-09-09
 /// to <see cref="EvenZetaRatio"/>'s generated set, which runs to any even order without limit -
-/// <c>halheinrich/Math#68</c>. From n = 12 the denominators are 691, 2, 3617, 43867, 174611 and on,
-/// and those are the only targets that can tell a denominator claim from a height claim, every
-/// earlier one being denominator 1. They wait on the generalised runner held under
-/// <c>halheinrich/Math#65</c>, which is where they are worth writing: a control earns most written
-/// against the pipeline shape that gets kept. What lands here now is the tie between the generated
-/// value and the pipeline's own answer, which costs nothing and is the strongest check available.
+/// <c>halheinrich/Math#68</c> - and it now reads as a survivor set: under a bound fixed in
+/// advance, exactly the answer. <see cref="SurvivorSetControlTests"/> asserts that at every even
+/// order from 2 to 16, including the denominators 691, 2 and 3617 that alone can tell a
+/// denominator claim from a height claim. The tests here assert on the trend matrix, which section
+/// 2 keeps as presentation, and widening <i>them</i> stays held under <c>halheinrich/Math#65</c>.
+/// What they add is the tie between the generated value and the pipeline's own answer, and the
+/// halting rule seen driving two providers to different depths.
 /// </para>
 /// <para>
 /// <b>These are not the controls in <c>RealConstants.Tests/EvenZetaControlTests</c>, and neither
@@ -149,8 +150,8 @@ public sealed class PositiveControlTests
         // controls live in. An enclosure that stops narrowing leaves rivals standing however long
         // the run goes on. So what is asserted here is that narrowing: the row's cells are the
         // exact |answer - x_k|, and they fall by sixty orders of magnitude while staying inside an
-        // enclosure that falls with them. Asserting the survivor set itself waits on the pipeline
-        // held under halheinrich/Math#65, as it does in NegativeControlTests.
+        // enclosure that falls with them. The survivor set itself is SurvivorSetControlTests'
+        // assertion, at every even order from 2 to 16.
         RatioRun run = Control(order);
         TrendRow row = Assert.Single(run.Matrix.Rows);
 

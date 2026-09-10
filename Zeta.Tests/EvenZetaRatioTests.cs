@@ -18,9 +18,9 @@ namespace HalHeinrich.Numerics.Tests;
 /// <para>
 /// <b>The Bernoulli numbers underneath are a second implementation of what
 /// <c>EulerMaclaurinZeta</c> computes privately</b>, and the two are held together rather than
-/// merely coexisting: <see cref="PositiveControlTests"/> asserts that the value generated here is
-/// the one the pipeline drives its enclosure around, through a provider that reaches zeta from
-/// reciprocal powers and never forms pi at all. <c>../AGENTS.md</c> § Testing discipline calls that
+/// merely coexisting: <see cref="SurvivorSetControlTests"/> asserts that the value generated here
+/// is the only rational the pipeline leaves standing, at every even order from 2 to 16, through a
+/// provider that reaches zeta from reciprocal powers and never forms pi at all. <c>../AGENTS.md</c> § Testing discipline calls that
 /// the strongest correctness test available, and it is what stops a duplicated recurrence from
 /// being a duplicated mistake.
 /// </para>

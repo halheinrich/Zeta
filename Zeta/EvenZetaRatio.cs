@@ -37,8 +37,9 @@ namespace HalHeinrich.Numerics;
 /// is no surface to reach. Reimplementing a definition is the duplication § Writing code warns
 /// about; what makes it tolerable rather than invisible is that the two are cross-checked by
 /// construction - <c>EvenZetaRatioTests</c> holds this against section 1's eight listed values,
-/// and <c>PositiveControlTests</c> reaches the same answers through <c>EulerMaclaurinZeta</c> and
-/// the whole pipeline, so a fault in either recurrence reddens. A <c>RealConstants</c> change
+/// and <c>SurvivorSetControlTests</c> finds the same answers, alone, through
+/// <c>EulerMaclaurinZeta</c> and the whole pipeline at every even order from 2 to 16, so a fault in
+/// either recurrence reddens. A <c>RealConstants</c> change
 /// exposing the sequence would let this become a call, and is flagged rather than made here: this
 /// arc's brief is <c>Zeta</c>'s alone.
 /// </para>

@@ -217,6 +217,13 @@ about the answer. `ExponentReaching` likewise *searches* for the smallest
 exponent whose target derives a `Q` the predicate accepts, where it used to
 invert the rule as the digit count of `d²`.
 
+**§ 4's positive controls are survivor sets, and gate CI up to n = 16 for cost
+alone.** `Zeta.Tests/SurvivorSetControlTests` asserts that under one bound
+fixed in advance the survivor set is exactly the answer, at every even order
+from 2 to 16, sized by looping on `SurvivorSearch.IsIsolated` rather than by
+refining to a bound. Its remarks carry the bound chosen and the measurement
+that leaves 18 an experiment — a cost cut, not `MaxOrder` returning.
+
 Measured 2026-09-09: `survivors 18` refuses in 0.4 s, and `survivors 18 5 11`
 returns `38979295480125/43867` **alone** at `Q = 370,727` in 269 s. § 1's value,
 at an order the cap forbade.
@@ -228,10 +235,10 @@ there is no surface to reach — flagged for a `RealConstants` change rather tha
 made here, this arc's brief being `Zeta`'s alone. What keeps the duplication from
 being invisible is that the two are cross-checked by construction:
 `EvenZetaRatioTests` holds the generated values against § 1's eight, and
-`PositiveControlTests` asserts the same values are what the pipeline drives its
-enclosure around, through a provider that reaches ζ from reciprocal powers and
-never forms π at all. `../AGENTS.md` § Testing discipline calls that the
-strongest correctness test available here.
+`SurvivorSetControlTests` asserts each is the only rational the pipeline leaves
+standing at every even order from 2 to 16, through a provider that reaches ζ
+from reciprocal powers and never forms π at all. `../AGENTS.md` § Testing
+discipline calls that the strongest correctness test available here.
 
 **A refusal names which end to move, and holds it as a value.** Ruling 3 on
 `halheinrich/Math#64` came with a live instance: `survivors 10 4 11` was refused,
