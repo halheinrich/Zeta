@@ -965,17 +965,32 @@ internal static class SurvivorRun
     /// </para>
     /// <para>
     /// <b>What that costs is an assumption, stated here rather than hidden, and it biases this
-    /// guard towards admitting - by less than the guard's own run-to-run spread.</b> Both prices
-    /// are measured against the <i>widest</i> enclosure's endpoints and then applied to every
-    /// prefix - and a narrower enclosure carries larger endpoints, so the prefixes the sample never
-    /// touches cost more than it charges for them. But the prediction is not a consistent
-    /// understatement, and should not be read as one: six runs of <c>survivors 3 4 11</c> by two
-    /// sessions on 2026-09-10 put it at 0.72, 0.84, 0.85, 0.90, 0.92 and 1.2 of the realised walk -
-    /// about 30% either way - because the timed prediction (110 to 130 s) and the walk itself (122
-    /// to 155 s) both move between runs. A seventh the same day, with builds and tests sharing the
-    /// machine, read 1.8. The epilogue prints the realised walk beside the prediction for exactly
-    /// that reason: the guard's own error is on the screen of every run rather than something a
-    /// reader has to take on trust.
+    /// guard towards admitting.</b> Both prices are measured against the <i>widest</i> enclosure's
+    /// endpoints and then applied to every prefix - and a narrower enclosure carries larger
+    /// endpoints, so the prefixes the sample never touches cost more than it charges for them.
+    /// </para>
+    /// <para>
+    /// <b>What the prediction promises is a direction of error, not a band around the truth.</b>
+    /// The sample is timed in a second and the walk runs for minutes, so the ratio of the two is
+    /// set mostly by how the machine's load changes between them - which nothing here controls or
+    /// observes. A sample timed under heavier load than the walk later meets over-prices, and the
+    /// guard over-refuses: the safe error, seen at 1.8 on 2026-09-10 in a run of
+    /// <c>survivors 3 4 11</c> with builds and tests sharing the machine, which predicted 250 s for
+    /// a walk that took 143. A sample taken under lighter load under-prices, and the guard
+    /// over-admits: the unsafe error, whose worst reading is 0.72 - at which a walk predicted at
+    /// the whole <see cref="BudgetSeconds"/> would run about 417 s (300 / 0.72). Load rising partway
+    /// through a walk could do worse than that, and nothing bounds it. The widest-enclosure bias
+    /// above leans the same way, towards admitting.
+    /// </para>
+    /// <para>
+    /// So this guard stops an accidental hour; it does not hold a run to its budget. The readings
+    /// behind that, all of <c>survivors 3 4 11</c> on 2026-09-10: six by two sessions on a machine
+    /// under roughly steady load read 0.72, 0.84, 0.85, 0.90, 0.92 and 1.2, with the prediction
+    /// between 110 and 130 s and the walk between 122 and 155 s, and the seventh above read 1.8.
+    /// Steady-load readings fitted with a range look like a property of the guard and are a
+    /// property of the day; two such ranges were written down before the seventh broke them. The
+    /// epilogue prints the realised walk beside the prediction for exactly that reason: the guard's
+    /// own error is on the screen of every run rather than something a reader has to take on trust.
     /// </para>
     /// <para>
     /// <b>Two bounds, a factor of <see cref="SampleSpread"/> apart, because one walk cannot
