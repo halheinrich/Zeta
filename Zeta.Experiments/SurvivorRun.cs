@@ -779,7 +779,11 @@ internal static class SurvivorRun
     /// <summary>The reason a capped control cannot find its own answer, or null when it can.</summary>
     /// <param name="order">The requested order.</param>
     /// <param name="bound">Where the run's bound came from.</param>
-    /// <returns>The refusal, or null - always null for an odd order, and for a bound nothing capped.</returns>
+    /// <returns>
+    /// The refusal, or null - always null for an odd order, and for a bound nothing capped. Where
+    /// the derived bound does not reach the answer either, the refusal is
+    /// <see cref="RefuseUnreachableControl"/>'s, since the schedule is then what is short.
+    /// </returns>
     /// <remarks>
     /// <para>
     /// <b>The hole a cap opens in <see cref="RefuseUnreachableControl"/>.</b> That check reads the
@@ -796,8 +800,19 @@ internal static class SurvivorRun
     /// says so rather than naming a knob that is connected to nothing.
     /// </para>
     /// <para>
-    /// The decision is <see cref="SurvivorSearch.IsReachable"/>'s, asked of the capped bound, for
-    /// the reason <see cref="RefuseUnreachableControl"/> gives: the rule is implemented once, in
+    /// <b>Every claim the message makes is established here, not borrowed from the caller.</b> It
+    /// says the derived bound reaches the answer and that no schedule change helps, and both are
+    /// true only when the derived bound does reach. <see cref="Run"/> guarantees that by asking
+    /// <see cref="RefuseUnreachableControl"/> first, but a pure function whose output is true only
+    /// under its caller's ordering is one refactor away from printing something false. So where the
+    /// derived bound falls short too, the schedule is what is short, and this returns that
+    /// refusal - the true one, with the advice that works - rather than its own. It names the
+    /// <c>deep</c> command because a capped bound is a deep run's by ruling 5: only
+    /// <see cref="Afford"/> caps.
+    /// </para>
+    /// <para>
+    /// Both decisions are <see cref="SurvivorSearch.IsReachable"/>'s, for the reason
+    /// <see cref="RefuseUnreachableControl"/> gives: the rule is implemented once, in
     /// <c>RationalApproximation</c>, and the denominator the message quotes only reports it.
     /// </para>
     /// </remarks>
@@ -809,6 +824,11 @@ internal static class SurvivorRun
         }
 
         BigRational answer = EvenZetaRatio.Of(order);
+
+        if (!SurvivorSearch.IsReachable(answer, bound.Derived))
+        {
+            return RefuseUnreachableControl(order, bound.Derived, SurvivorMode.Deep);
+        }
 
         return !SurvivorSearch.IsReachable(answer, bound.Q)
             ? string.Create(CultureInfo.InvariantCulture,

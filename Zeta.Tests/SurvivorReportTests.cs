@@ -1417,6 +1417,24 @@ public sealed class SurvivorReportTests
     }
 
     [Fact]
+    public void RefuseUnaffordableControl_WhenTheScheduleIsShortToo_GivesTheUnreachableRefusal()
+    {
+        // Capped, and the derived bound falls short of 43,867 as well. The unaffordable message
+        // would say the schedule's precision "reaches the answer's denominator" and that "no
+        // schedule change helps" - both false here, and true in Run only because it asks the
+        // unreachable check first. A message must not borrow its truth from its caller's order, so
+        // the refusal is the one whose claims hold, with the advice that works.
+        var bound = new SurvivorBound(40_000, 30_000);
+
+        string? refusal = SurvivorRun.RefuseUnaffordableControl(18, bound);
+
+        Assert.NotNull(refusal);
+        Assert.Equal(SurvivorRun.RefuseUnreachableControl(18, bound.Derived, SurvivorMode.Deep), refusal);
+        Assert.Contains("Raise the LAST exponent", refusal, StringComparison.Ordinal);
+        Assert.DoesNotContain("No schedule change helps", refusal, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RefuseUnaffordableControl_SaysNothingWhereNoCapOrNoAnswerExists()
     {
         // No cap, no new hole: the derived bound was already checked. And an odd order has no

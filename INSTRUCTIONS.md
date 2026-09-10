@@ -381,7 +381,10 @@ reads the derived bound, and a cap can fall below an even order's denominator
 that the derived bound reached, which would print an empty set as a false
 refutation. `RefuseUnaffordableControl` re-checks the capped `Q`, and its advice
 differs because the budget is what's short: no schedule change helps a deep
-walk, whose cost the first exponent does not move.
+walk, whose cost the first exponent does not move. That advice is true only
+when the derived bound reaches, so the method checks it rather than relying on
+`Run` having asked first, and where the schedule is short too it returns the
+unreachable refusal instead.
 
 ### Presentation lives here, not in the library
 
