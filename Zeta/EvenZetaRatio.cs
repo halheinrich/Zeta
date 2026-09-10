@@ -105,21 +105,6 @@ public static class EvenZetaRatio
         return BigRational.FromInteger(2 * Factorial(order)) / denominator;
     }
 
-    /// <summary>The smallest denominator bound under which this order's answer is reachable.</summary>
-    /// <param name="order">The order of zeta. Even, and at least two.</param>
-    /// <returns>The denominator of <see cref="Of"/>, in lowest terms.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="order"/> is below two or odd.</exception>
-    /// <remarks>
-    /// <b>A run bounded below this cannot find this answer, and will report an empty survivor set
-    /// saying so.</b> That is a false refutation of a true answer, which
-    /// <c>SPEC-rational-ratio.md</c> § 2 forbids in exactly that direction - and it is decidable in
-    /// advance, which is why this is a member rather than something a caller reads off
-    /// <see cref="Of"/> and remembers to compare. The denominators run 1 through n = 10, then 691,
-    /// 2, 3617, 43867, 174611 and on; the default schedule reaches <c>Q = 11,585</c>, so order 18
-    /// is the first that outruns it.
-    /// </remarks>
-    public static BigInteger ReachableFrom(int order) => Of(order).Denominator;
-
     /// <summary><c>B_(2j)</c>, from the defining recurrence.</summary>
     /// <param name="half">The half-index, at least one.</param>
     /// <returns><c>B_(2j)</c>.</returns>

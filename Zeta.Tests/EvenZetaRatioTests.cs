@@ -68,22 +68,6 @@ public sealed class EvenZetaRatioTests
     }
 
     [Theory]
-    [InlineData(2, 1)]
-    [InlineData(10, 1)]
-    [InlineData(12, 691)]
-    [InlineData(14, 2)]
-    [InlineData(16, 3617)]
-    [InlineData(18, 43867)]
-    [InlineData(20, 174611)]
-    public void ReachableFrom_IsTheDenominatorARunMustReach(int order, int denominator)
-    {
-        // Not monotone, which is exactly why the cap's other justification - that 16 is "where the
-        // even orders stop having small denominators" - was unsupported too. The digits run 3, 1,
-        // 4, 5, 6 across n = 12 to 20 and there is no cliff at 16.
-        Assert.Equal(new BigInteger(denominator), EvenZetaRatio.ReachableFrom(order));
-    }
-
-    [Theory]
     [InlineData(2)]
     [InlineData(16)]
     [InlineData(100)]

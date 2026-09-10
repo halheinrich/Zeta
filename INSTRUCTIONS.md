@@ -36,7 +36,9 @@ than being added when results appear.
 - **RationalApproximation** — every contract wired here. `Approximation` and
   its arithmetic, `IRealConstant`, `IRationalApproximator` with the reference
   `DenominatorSweep`, `RationalCandidate`, and `TrendIteration` /
-  `TrendRow` / `TrendMatrix`.
+  `TrendRow` / `TrendMatrix`. Also `SurvivorSearch`: the survivor set, and the
+  only implementation of the reachability and isolation rules, which this
+  repository asks and never restates.
 
 - **BigRationalLibrary** — `HalHeinrich.Numerics.BigRational`, the exact
   rational every value, bound and matrix cell is computed in.
@@ -202,9 +204,18 @@ bound, decidable before any search, and sits beside the cost refusal in `Run`
 is turned down. It is **silent on an odd order** and that is not a gap: nobody
 knows a denominator to compare against there, which is the question, so an odd
 run's empty set is a genuine refutation. `ExponentReaching` names the shallowest
-last exponent that certainly reaches, from the digit count of `d²` rather than
-from a logarithm that would be off by one at a power of ten — where a caller
-following the advice would land one short of the bound it promises.
+last exponent that certainly reaches.
+
+**Neither decides reachability; both ask `SurvivorSearch.IsReachable`** (as of
+`halheinrich/Math#64`'s last leg, 2026-09-10). `../SPEC-rational-ratio.md` § 2
+states the rule and `RationalApproximation` implements it, once, so nothing in
+this repository compares a `Q` with a denominator. `EvenZetaRatio.ReachableFrom`
+is gone for that reason: it was the answer's denominator under a name that
+encoded the rule, and it existed to feed comparisons that restated it. A message
+quoting the denominator reads `EvenZetaRatio.Of(order).Denominator`, a fact
+about the answer. `ExponentReaching` likewise *searches* for the smallest
+exponent whose target derives a `Q` the predicate accepts, where it used to
+invert the rule as the digit count of `d²`.
 
 Measured 2026-09-09: `survivors 18` refuses in 0.4 s, and `survivors 18 5 11`
 returns `38979295480125/43867` **alone** at `Q = 370,727` in 269 s. § 1's value,

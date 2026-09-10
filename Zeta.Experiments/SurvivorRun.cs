@@ -515,12 +515,23 @@ internal static class SurvivorRun
     /// empty set it could call false. An odd run's empty set is a genuine refutation.
     /// </para>
     /// <para>
-    /// A pure function of two values, decidable before any search: the denominator comes from
+    /// <b>The rule is <see cref="SurvivorSearch.IsReachable"/>'s, and is not restated here.</b>
+    /// <c>../SPEC-rational-ratio.md</c> § 2 states it once and <c>RationalApproximation</c>
+    /// implements it once, so this method only chooses whether to ask - an even order, whose answer
+    /// is known - and what to print when the answer is no. The denominator the message quotes is a
+    /// fact about the answer, read off <see cref="EvenZetaRatio.Of"/>, and decides nothing.
+    /// </para>
+    /// <para>
+    /// A pure function of two values, decidable before any search: the answer comes from
     /// <see cref="EvenZetaRatio"/> and <c>Q</c> from the enclosures the pipeline has already
     /// realised. It sits beside <see cref="Refuse"/> in <see cref="Run"/> and goes first, since a
     /// run that cannot find its answer should not be priced before it is turned down.
     /// </para>
     /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="denominatorBound"/> is negative and the order is even - refused by
+    /// <see cref="SurvivorSearch.IsReachable"/>, which owns what a valid bound is.
+    /// </exception>
     public static string? RefuseUnreachableControl(int order, BigInteger denominatorBound, SurvivorMode mode)
     {
         string command = CommandFor(mode);
@@ -530,22 +541,22 @@ internal static class SurvivorRun
             return null;
         }
 
-        BigInteger needed = EvenZetaRatio.ReachableFrom(order);
+        BigRational answer = EvenZetaRatio.Of(order);
 
-        return denominatorBound < needed
+        return !SurvivorSearch.IsReachable(answer, denominatorBound)
             ? string.Create(CultureInfo.InvariantCulture,
                 $"Refusing this run: it could not find its own answer.\n" +
                 $"  the answer   pi^{order}/zeta({order}) = {EvenZetaRatio.Format(order)}, exactly, from " +
                 $"section 1's identity\n" +
                 $"  the bound    Q = {denominatorBound}, derived from this schedule's final enclosure\n" +
-                $"  the gap      the answer's denominator is {needed}, so it is not in the candidate\n" +
+                $"  the gap      the answer's denominator is {answer.Denominator}, so it is not in the candidate\n" +
                 $"               set at all and the survivor set would come back EMPTY - a false\n" +
                 $"               refutation of a true answer, which section 2 forbids in exactly\n" +
                 $"               that direction\n" +
                 $"Raise the LAST exponent to at least {ExponentReaching(order)}: that is the claim knob, and here " +
                 $"the claim\n" +
                 $"is what is short. '{command} {order} {DefaultFirstExponent} {ExponentReaching(order)}' derives a Q " +
-                $"that reaches {needed}.\n" +
+                $"that reaches {answer.Denominator}.\n" +
                 $"An odd order is not checked this way and cannot be: nobody knows a denominator to\n" +
                 $"compare against, which is the question this bench exists to ask.")
             : null;
@@ -557,26 +568,39 @@ internal static class SurvivorRun
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="order"/> has no known answer.</exception>
     /// <remarks>
     /// <para>
-    /// <c>Q = floor(eps^(-1/2))</c> reaches a denominator <c>d</c> once <c>eps &lt;= 1/d^2</c>, and
-    /// <c>10^-k &lt; 1/d^2</c> exactly when <c>d^2 &lt; 10^k</c> - so the decimal digit count of
-    /// <c>d^2</c> is the exponent, found by counting digits rather than by a logarithm. A
-    /// <see cref="double"/> logarithm would be off by one at a power of ten, which is precisely
-    /// where a caller following this advice would be left one short of the bound it promises.
+    /// <b>Searched, not solved.</b> The exponent is the smallest at or above
+    /// <see cref="MinExponent"/> whose target derives a <c>Q</c> that
+    /// <see cref="SurvivorSearch.IsReachable"/> accepts, so the rule is asked where it is
+    /// implemented and the bound is derived where it is derived. Until <c>halheinrich/Math#64</c>'s
+    /// last leg this counted the decimal digits of the answer's denominator squared - an inversion
+    /// of the reachability rule, and so a second statement of it in arithmetic, which is the form
+    /// the isolation rule went wrong in three times. The two agree at every even order from 2 to
+    /// 120, checked in exact rationals by a scratchpad script on 2026-09-10; they part only at a
+    /// denominator that is a power of ten, where the digit count named one exponent deeper than
+    /// needed, and none of those orders has one.
     /// </para>
     /// <para>
-    /// It is a guarantee on the <i>target</i>, and a run realises something tighter, so the
-    /// schedule this names always reaches - usually with a decade to spare. Naming the shallowest
-    /// exponent that certainly works beats naming the one that probably does: the caller acts on
-    /// this and waits for the answer.
+    /// The enclosure each exponent is asked about is the answer at exactly the target's half-width,
+    /// and <see cref="SurvivorReport.DerivedBound"/> reads only that half-width. It is a guarantee
+    /// on the <i>target</i>, and a run realises something tighter, so the schedule this names
+    /// always reaches - usually with a decade to spare. Naming the shallowest exponent that
+    /// certainly works beats naming the one that probably does: the caller acts on this and waits
+    /// for the answer.
     /// </para>
     /// </remarks>
     public static int ExponentReaching(int order)
     {
-        BigInteger denominator = EvenZetaRatio.ReachableFrom(order);
-        BigInteger square = denominator * denominator;
+        BigRational answer = EvenZetaRatio.Of(order);
+        BigInteger BoundAt(int candidate) =>
+            SurvivorReport.DerivedBound(Approximation.Create(answer, TargetSchedule.Decade(candidate)));
 
-        return Math.Max(
-            MinExponent, square.ToString(CultureInfo.InvariantCulture).Length);
+        int exponent = MinExponent;
+        while (!SurvivorSearch.IsReachable(answer, BoundAt(exponent)))
+        {
+            exponent++;
+        }
+
+        return exponent;
     }
 
     /// <summary>The reason this schedule will not be run, or null when it will.</summary>
@@ -771,6 +795,11 @@ internal static class SurvivorRun
     /// move a deep walk's cost at all. What is short is the budget, or the machine, and the message
     /// says so rather than naming a knob that is connected to nothing.
     /// </para>
+    /// <para>
+    /// The decision is <see cref="SurvivorSearch.IsReachable"/>'s, asked of the capped bound, for
+    /// the reason <see cref="RefuseUnreachableControl"/> gives: the rule is implemented once, in
+    /// <c>RationalApproximation</c>, and the denominator the message quotes only reports it.
+    /// </para>
     /// </remarks>
     public static string? RefuseUnaffordableControl(int order, SurvivorBound bound)
     {
@@ -779,15 +808,15 @@ internal static class SurvivorRun
             return null;
         }
 
-        BigInteger needed = EvenZetaRatio.ReachableFrom(order);
+        BigRational answer = EvenZetaRatio.Of(order);
 
-        return bound.Q < needed
+        return !SurvivorSearch.IsReachable(answer, bound.Q)
             ? string.Create(CultureInfo.InvariantCulture,
                 $"Refusing this run: the budget cannot reach its own answer.\n" +
                 $"  the answer   pi^{order}/zeta({order}) = {EvenZetaRatio.Format(order)}, exactly, from " +
                 $"section 1's identity\n" +
                 $"  the bound    the schedule's precision supports Q = {bound.Derived}, which reaches the\n" +
-                $"               answer's denominator {needed} - but the budget of {BudgetSeconds} s affords a\n" +
+                $"               answer's denominator {answer.Denominator} - but the budget of {BudgetSeconds} s affords a\n" +
                 $"               deep walk only to Q = {bound.Q}, and there the answer is not in the\n" +
                 $"               candidate set at all. The survivor set would come back EMPTY - a false\n" +
                 $"               refutation of a true answer, which section 2 forbids in exactly that\n" +

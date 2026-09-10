@@ -424,20 +424,34 @@ public sealed class SurvivorReportTests
     [InlineData(20, 11)]
     public void ExponentReaching_NamesAScheduleThatCertainlyReaches(int order, int exponent)
     {
-        // Q = floor(eps^(-1/2)) clears a denominator d once eps <= 1/d^2, so the exponent is the
-        // decimal digit count of d^2. Asserted against the derived bound rather than against the
-        // arithmetic that produced it: what a caller acting on this advice gets must be a Q at or
-        // above the denominator, and a logarithm off by one at a power of ten would leave them
-        // one short of exactly that.
+        // Asserted against the derived bound rather than against how the exponent was found: what
+        // a caller acting on this advice gets must be a Q the answer is reachable from, and whether
+        // it is reachable is SurvivorSearch.IsReachable's to say - it is the rule's one
+        // implementation, so this test asks it rather than comparing a Q with a denominator itself.
+        // The exponents are what the digit count of the denominator squared gave before the search
+        // replaced it, so a change in what the advice names reddens here too.
         Assert.Equal(exponent, SurvivorRun.ExponentReaching(order));
 
+        BigRational answer = EvenZetaRatio.Of(order);
         BigInteger reached = SurvivorReport.DerivedBound(
             At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, exponent)));
 
         Assert.True(
-            reached >= EvenZetaRatio.ReachableFrom(order),
-            Inv($"1e-{exponent} derives Q = {reached}, short of {EvenZetaRatio.ReachableFrom(order)}."));
+            SurvivorSearch.IsReachable(answer, reached),
+            Inv($"1e-{exponent} derives Q = {reached}, from which {answer} is not reachable."));
         Assert.Null(SurvivorRun.RefuseUnreachableControl(order, reached, SurvivorMode.Chart));
+
+        // And it is the shallowest, which is the half of the promise a too-cautious search would
+        // break silently: one decade less must not reach, unless it would fall below the floor.
+        if (exponent > SurvivorRun.MinExponent)
+        {
+            BigInteger shallower = SurvivorReport.DerivedBound(
+                At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, exponent - 1)));
+
+            Assert.False(
+                SurvivorSearch.IsReachable(answer, shallower),
+                Inv($"1e-{exponent - 1} already derives Q = {shallower}, which reaches {answer}."));
+        }
     }
 
     [Fact]
