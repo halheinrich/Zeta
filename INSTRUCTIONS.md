@@ -60,10 +60,11 @@ than being added when results appear.
   scaffolding rather than a fixture: the pipeline has decisions that no real
   provider's numbers reach, and a stub is the only way to hand it the numbers
   that do.
-- **`Zeta.Experiments`** — a runnable project, not a test project. Three
-  commands: `walk`, the ζ(2) exhibit; `target`, the π³/ζ(3) run; and
-  `survivors`, which reports § 2 step 6's survivor set and draws it as an SVG
-  on stdout. Everything in it is `internal`, which is what `.editorconfig`
+- **`Zeta.Experiments`** — a runnable project, not a test project. Four
+  commands: `walk`, the ζ(2) exhibit; `target`, the π³/ζ(3) run; `survivors`,
+  which reports § 2 step 6's survivor set and draws it as an SVG on stdout; and
+  `deep`, the same survivor set walked once rather than per prefix, traded for
+  reach. Everything in it is `internal`, which is what `.editorconfig`
   expects — CA1515 is suppressed only under `[**/*Tests.cs]`, so a public type
   here fails the build.
 
@@ -297,6 +298,49 @@ limit rather than the schedule's, which is why the floor is at the command edge.
 Unlike `target`, a single-column schedule is allowed: that command's whole
 output is a trend across columns, and this one's is a survivor set that one
 enclosure already produces.
+
+### `deep` is one walk, and it gives up the pictures rather than the answer
+
+Ruling 4 on `halheinrich/Math#64`. `SurvivorReport.Of` walks once per prefix
+to build the collapse; `SurvivorReport.Deep` walks once with every enclosure.
+**The survivor set is identical**, because `SurvivorSearch` intersects every
+enclosure it is given and seeds from the narrowest, so one walk over all of them
+*is* the chart's last prefix. `Deep_ReturnsTheChartsFinalRowElementForElement`
+holds that on the non-nesting pair, and `Deep_WalksOnceWithEveryEnclosure`
+counts the calls through the report's optional walk, the seam
+`RatioRun.Execute`'s optional searcher already set.
+
+**Both panels are lost, not one.** The nearest-excluded family is built from the
+widest prefix's walk alone, which is the exact pass `deep` deletes, so the
+distance panel is left with the survivors against the half-width and nothing to
+contrast them with. That loss is accepted rather than repaired: re-walking the
+widest spends the cost `deep` exists to avoid, and having `SurvivorSearch`
+report near misses would change a contract whose promise is "everything still
+standing". `SurvivorReport.Omitted` names what is missing as a value, and the
+chart and the epilogue both render it, so a thinner picture never ships
+silently.
+
+**It is a verb, not a flag,** because the runner has one grammar (verbs,
+positional arguments, no flags) and `deep` shares `survivors`' grammar exactly.
+The chart stays the default: the collapse is what makes a refutation legible.
+
+**It is priced as the final prefix, and sampled from itself.** `Size` in deep
+mode is `Q` denominators and `h_min·Q²` candidates, about one at a derived `Q`,
+so the walk is nearly all outer loop. That is the price that grows as the seed
+tightens, and it is why `CalibrateDeep` times the deep walk itself rather than
+the widest enclosure. Measured 2026-09-10 in a scratch probe on `3 4 11`'s
+enclosures: the chart's two-price sample put a denominator at 2.9 µs against the
+deep walk's steady 6.9, which is 2.4 times low, and a walk seeded from each
+enclosure alone ran from 3.7 µs on the widest to 6.9 on the narrowest. It is
+**one** price, since a two-price solve over a sample holding about one candidate
+recovers the second price as noise.
+
+**Its warm-up is longer than the chart's, and the reason is a measurement.** On
+the same run the sample held at 15 µs through 0.43 s, then fell to 7 at 0.52 s: a
+tier promotion arriving after the chart's 0.3 s. Read at 0.3 s it predicted 1.9
+times the realised walk. `DeepSampleWarmUpSeconds` is one second, and it errs
+long on purpose: a sample read too early over-prices, which admits less rather
+than more.
 
 ### Presentation lives here, not in the library
 

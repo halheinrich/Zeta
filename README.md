@@ -129,6 +129,7 @@ dotnet run --project Zeta.Experiments -- list
 dotnet run --project Zeta.Experiments -- walk
 dotnet run --project Zeta.Experiments -- target
 dotnet run --project Zeta.Experiments -- survivors > survivors.svg
+dotnet run --project Zeta.Experiments -- deep 3 4 13 > deep3.svg
 ```
 
 `walk` is **π²/ζ(2), whose answer is 6**, driven one provider step at a time:
@@ -181,6 +182,17 @@ instead of paying it. The budget is in **seconds rather than candidates**,
 because a candidate costs five times more at order 10 than at order 3. It is not
 a timed abort — the search then runs to completion, so a slower machine refuses
 more runs and reports the same answer on the ones it admits.
+
+`deep` returns **the same survivor set as `survivors`, without the charts,
+traded for reach.** It takes the same arguments. Where `survivors` walks the
+denominators once per prefix of the enclosures to draw the collapse, `deep`
+walks once with all of them, and that one walk is the collapse's last prefix, so
+the answer is identical. What it gives up is every picture that needs a shorter
+prefix: the collapse chart and the nearest excluded candidates. Both the SVG and
+the terminal say which panels are missing, so the picture is never thinner in
+silence. Its walk is about `Q` denominators and almost nothing else, so the first
+exponent does not move its cost at all, and it is priced by timing a sample of
+that walk itself.
 
 ## Building
 

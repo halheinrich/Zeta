@@ -27,7 +27,8 @@ internal sealed record ChartCaption(
 
 /// <summary>
 /// The two charts the survivor command writes: the collapse of the survivor set, and each tracked
-/// candidate's distance against the enclosure half-width that refutes it.
+/// candidate's distance against the enclosure half-width that refutes it. A deep run draws the
+/// second alone, with the survivors alone on it, and says so in place of what is missing.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -69,30 +70,98 @@ internal static class SurvivorChart
         "#1f6feb", "#c9401f", "#1a7f5a", "#8250df", "#b38600", "#0f6a7a",
     ];
 
+    /// <summary>How far the statement standing in for a missing collapse panel reaches down the page.</summary>
+    private const double NotDrawnHeight = 84;
+
     /// <summary>Writes the whole document.</summary>
     /// <param name="svg">Where the document goes - standard output, in this command.</param>
     /// <param name="report">The completed report.</param>
     /// <param name="caption">What the run was.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <remarks>
+    /// A panel the report <see cref="SurvivorReport.Omitted"/> is replaced by a statement of why it
+    /// is missing, never left out silently: a picture with a gap where the collapse was reads as a
+    /// run in which nothing collapsed.
+    /// </remarks>
     public static void Write(TextWriter svg, SurvivorReport report, ChartCaption caption)
     {
         ArgumentNullException.ThrowIfNull(svg);
         ArgumentNullException.ThrowIfNull(report);
         ArgumentNullException.ThrowIfNull(caption);
 
-        double legend = 18 + (report.Tracked.Count * 15);
+        bool collapse = !report.Omitted.Contains(SurvivorPanel.Collapse);
+        double legend = 18 + (report.Tracked.Count * 15) +
+            (report.Omitted.Contains(SurvivorPanel.NearestExcluded) ? 15 * WhyNotDrawn(SurvivorPanel.NearestExcluded).Count : 0);
         double collapseTop = 232;
-        double distanceTop = collapseTop + PanelHeight + 84;
+        double distanceTop = collapseTop + (collapse ? PanelHeight + 84 : NotDrawnHeight);
         double height = distanceTop + PanelHeight + 62 + legend + 96;
 
         Svg.Open(svg, Width, height, caption.Title + " - survivors under a denominator bound");
 
         Heading(svg, report, caption);
-        Collapse(svg, report, collapseTop);
+
+        if (collapse)
+        {
+            Collapse(svg, report, collapseTop);
+        }
+        else
+        {
+            NotDrawn(svg, SurvivorPanel.Collapse, "1. ", collapseTop - 26);
+        }
+
         Distances(svg, report, distanceTop, legend);
         Caveat(svg, report, height - 60);
 
         Svg.Close(svg);
+    }
+
+    /// <summary>What a panel is called, in the words its heading uses.</summary>
+    /// <param name="panel">The panel.</param>
+    /// <returns>Its name.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="panel"/> is not a defined panel.</exception>
+    public static string PanelName(SurvivorPanel panel) => panel switch
+    {
+        SurvivorPanel.Collapse => "the collapse",
+        SurvivorPanel.NearestExcluded => "the nearest excluded",
+        _ => throw new ArgumentOutOfRangeException(nameof(panel), panel, "Not a survivor panel."),
+    };
+
+    /// <summary>Why a deep walk cannot draw a panel, as short lines that fit a terminal and a chart alike.</summary>
+    /// <param name="panel">The panel.</param>
+    /// <returns>The explanation, one line per element.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="panel"/> is not a defined panel.</exception>
+    /// <remarks>
+    /// Spelled once, here, because two reports carry it - the chart in place of the panel, and the
+    /// epilogue on stderr - and the same reason given two ways is two things to keep true.
+    /// </remarks>
+    public static IReadOnlyList<string> WhyNotDrawn(SurvivorPanel panel) => panel switch
+    {
+        SurvivorPanel.Collapse =>
+        [
+            "The count still standing after each enclosure needs one walk per prefix of them.",
+            "This run walked once, with every enclosure, so no shorter prefix was counted.",
+            "The survivor set is the one the collapse would end at: a single walk over",
+            "every enclosure is exactly its last prefix.",
+        ],
+        SurvivorPanel.NearestExcluded =>
+        [
+            "The candidates nearest the ratio come from walking the widest enclosure alone -",
+            "the chart's first prefix, and the walk this run exists to skip. So the survivors",
+            "below have nothing drawn beside them to be contrasted with.",
+        ],
+        _ => throw new ArgumentOutOfRangeException(nameof(panel), panel, "Not a survivor panel."),
+    };
+
+    /// <summary>A panel's heading, followed by why it is not drawn.</summary>
+    private static void NotDrawn(TextWriter svg, SurvivorPanel panel, string number, double top)
+    {
+        Svg.Text(svg, PlotLeft, top, number + PanelName(panel).ToUpperInvariant() + " - NOT DRAWN", "h2");
+
+        IReadOnlyList<string> lines = WhyNotDrawn(panel);
+        for (int line = 0; line < lines.Count; line++)
+        {
+            Svg.Text(svg, PlotLeft, top + 18 + (line * 15), lines[line], "small");
+        }
     }
 
     private static void Heading(TextWriter svg, SurvivorReport report, ChartCaption caption)
@@ -232,19 +301,33 @@ internal static class SurvivorChart
     private static void Legend(TextWriter svg, SurvivorReport report, double top)
     {
         IReadOnlyList<Approximation> enclosures = report.Enclosures;
+        bool nearest = !report.Omitted.Contains(SurvivorPanel.NearestExcluded);
 
-        Svg.Text(svg, PlotLeft, top,
-            "the survivors, then the candidates nearest the final ratio - the ones every enclosure refuted last",
+        Svg.Text(svg, PlotLeft, top, nearest
+            ? "the survivors, then the candidates nearest the final ratio - the ones every enclosure refuted last"
+            : "the survivors alone - THE NEAREST EXCLUDED ARE NOT DRAWN:",
             "small");
 
-        Svg.Line(svg, PlotLeft, top + 15, PlotLeft + 26, top + 15, HalfWidthInk, 2.5, "6 4");
-        Svg.Text(svg, PlotLeft + 34, top + 19, "enclosure half-width", "small");
+        double key = top;
+
+        if (!nearest)
+        {
+            IReadOnlyList<string> why = WhyNotDrawn(SurvivorPanel.NearestExcluded);
+            for (int line = 0; line < why.Count; line++)
+            {
+                key += 15;
+                Svg.Text(svg, PlotLeft, key, why[line], "small");
+            }
+        }
+
+        Svg.Line(svg, PlotLeft, key + 15, PlotLeft + 26, key + 15, HalfWidthInk, 2.5, "6 4");
+        Svg.Text(svg, PlotLeft + 34, key + 19, "enclosure half-width", "small");
 
         for (int series = 0; series < report.Tracked.Count; series++)
         {
             BigRational candidate = report.Tracked[series];
             string colour = Palette[(series + 1) % Palette.Length];
-            double line = top + 34 + (series * 15);
+            double line = key + 34 + (series * 15);
 
             int refuted = -1;
             for (int index = 0; index < enclosures.Count && refuted < 0; index++)

@@ -16,6 +16,7 @@ namespace HalHeinrich.Numerics.Experiments;
 /// dotnet run --project Zeta.Experiments -- target 12
 /// dotnet run --project Zeta.Experiments -- survivors &gt; survivors.svg
 /// dotnet run --project Zeta.Experiments -- survivors 3 2 9 &gt; survivors3.svg
+/// dotnet run --project Zeta.Experiments -- deep 3 4 13 &gt; deep3.svg
 /// </code>
 /// <para>
 /// <c>survivors</c> writes an SVG rather than a table, so its stdout is redirected to a file the
@@ -49,6 +50,15 @@ internal static class Program
     /// <summary>The survivor report's command name, spelled once.</summary>
     public const string SurvivorsCommand = "survivors";
 
+    /// <summary>The same survivor report walked once rather than per prefix, spelled once.</summary>
+    /// <remarks>
+    /// A verb of its own rather than a flag on <see cref="SurvivorsCommand"/>, because this runner
+    /// has one grammar - verbs, positional arguments, no flags - and a flag or a leading keyword
+    /// would be a second one. The two share their argument grammar exactly, and
+    /// <see cref="SurvivorRun.Interpret"/> reads both.
+    /// </remarks>
+    public const string DeepCommand = "deep";
+
     private static int Main(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -79,7 +89,12 @@ internal static class Program
 
         if (string.Equals(args[0], SurvivorsCommand, StringComparison.OrdinalIgnoreCase))
         {
-            return SurvivorRun.Run(rest);
+            return SurvivorRun.Run(rest, SurvivorMode.Chart);
+        }
+
+        if (string.Equals(args[0], DeepCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            return SurvivorRun.Run(rest, SurvivorMode.Deep);
         }
 
         Console.Error.WriteLine(string.Create(CultureInfo.InvariantCulture,
@@ -123,6 +138,12 @@ internal static class Program
             $"                    1e-{SurvivorRun.DefaultFirstExponent} .. 1e-{SurvivorRun.DefaultLastExponent}, " +
             $"and takes both ends or neither, since"));
         notes.WriteLine("                    one exponent alone could name either.");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {DeepCommand + " [o f l]",-17}  the same survivor set as survivors, without the charts,"));
+        notes.WriteLine("                    traded for reach. One walk over every enclosure where");
+        notes.WriteLine("                    survivors walks once per prefix, so the collapse and the");
+        notes.WriteLine("                    nearest excluded are not drawn - and the output says so.");
+        notes.WriteLine("                    Same arguments, same defaults.");
         notes.WriteLine();
         notes.WriteLine("what they are for");
         notes.WriteLine();
@@ -160,6 +181,13 @@ internal static class Program
         notes.WriteLine("  is a power of two by construction, and which one a schedule lands on is");
         notes.WriteLine("  set by the first provider step to meet the target. Deeper runs are bought");
         notes.WriteLine("  by starting later, at the cost of a shorter chart.");
+        notes.WriteLine();
+        notes.WriteLine("  deep takes that trade to its end. Its survivor set is identical, because");
+        notes.WriteLine("  SurvivorSearch intersects every enclosure it is given and seeds from the");
+        notes.WriteLine("  narrowest, so one walk over all of them is the chart's last prefix. What it");
+        notes.WriteLine("  gives up is every picture that needs a shorter prefix. Its walk is about Q");
+        notes.WriteLine("  denominators and almost nothing else, so the first exponent does not move");
+        notes.WriteLine("  its cost at all; it is priced by timing a sample of that walk itself.");
         notes.WriteLine();
         notes.WriteLine("worth running");
         notes.WriteLine();

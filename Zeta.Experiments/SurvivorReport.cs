@@ -2,6 +2,41 @@ using System.Numerics;
 
 namespace HalHeinrich.Numerics.Experiments;
 
+/// <summary>A part of the survivor picture that only some walks can produce.</summary>
+/// <remarks>
+/// The survivor set itself is not here, because every walk produces it. What is here is what a
+/// report can <i>lack</i>, so that a run which does not draw something says so as a value rather
+/// than shipping a thinner picture and leaving the reader to notice.
+/// </remarks>
+internal enum SurvivorPanel
+{
+    /// <summary>
+    /// The count still standing after each enclosure. It needs one walk per prefix, which is
+    /// exactly what a deep run does not do.
+    /// </summary>
+    Collapse,
+
+    /// <summary>
+    /// The candidates nearest the final ratio that an enclosure refuted, drawn against the
+    /// survivors so there is something to contrast them with. They come from walking the widest
+    /// enclosure alone, which is the walk a deep run exists to skip.
+    /// </summary>
+    NearestExcluded,
+}
+
+/// <summary>Enumerates the rationals of bounded denominator that a set of enclosures leaves standing.</summary>
+/// <param name="enclosures">The enclosures, every one of which a survivor must satisfy.</param>
+/// <param name="denominatorBound">The largest denominator to consider.</param>
+/// <returns>The survivors.</returns>
+/// <remarks>
+/// <see cref="SurvivorSearch.Survivors"/>'s shape, named so a report can be handed a walk to call.
+/// Production always hands the real one, by leaving the argument out; a test hands one that counts
+/// its calls, which is what makes "a deep run walks once" a count rather than a timing - the same
+/// seam <see cref="RatioRun.Execute"/>'s optional searcher gives <see cref="NoSearch"/>'s tests.
+/// </remarks>
+internal delegate IEnumerable<BigRational> SurvivorWalk(
+    IEnumerable<Approximation> enclosures, BigInteger denominatorBound);
+
 /// <summary>
 /// What <c>../SPEC-rational-ratio.md</c> § 2 step 6 says a run reports: the rationals of bounded
 /// denominator that no enclosure excludes, the count still standing after each enclosure, and the
@@ -60,30 +95,65 @@ internal sealed class SurvivorReport
         "derivation below would divide by a zero error. No provider in this bench is exact, so " +
         "this is a guard rather than a case.";
 
+    private const string NoEnclosuresMessage =
+        "A survivor report needs at least one enclosure to intersect.";
+
+    /// <summary>What a deep walk cannot produce, in the order the chart would have drawn it.</summary>
+    private static readonly SurvivorPanel[] DeepOmits = [SurvivorPanel.Collapse, SurvivorPanel.NearestExcluded];
+
     private readonly Approximation[] enclosures;
     private readonly long[] counts;
     private readonly BigRational[] survivors;
     private readonly BigRational[] tracked;
+    private readonly SurvivorPanel[] omitted;
 
     private SurvivorReport(
         Approximation[] enclosures,
         long[] counts,
+        long survivorCount,
         BigRational[] survivors,
         BigRational[] tracked,
-        BigInteger denominatorBound)
+        BigInteger denominatorBound,
+        SurvivorPanel[] omitted)
     {
         this.enclosures = enclosures;
         this.counts = counts;
         this.survivors = survivors;
         this.tracked = tracked;
+        this.omitted = omitted;
+        SurvivorCount = survivorCount;
         DenominatorBound = denominatorBound;
     }
 
     /// <summary>Gets the enclosures the intersection ran over, in order.</summary>
     public IReadOnlyList<Approximation> Enclosures => enclosures;
 
+    /// <summary>Gets what this report does not hold, and so what no picture of it may draw.</summary>
+    /// <remarks>
+    /// <para>
+    /// Empty for a chart walk; <see cref="SurvivorPanel.Collapse"/> and
+    /// <see cref="SurvivorPanel.NearestExcluded"/> for a deep one. <b>Both, not one</b>: the nearest
+    /// excluded come from walking the widest enclosure alone, which is the chart's first prefix and
+    /// the exact pass a deep run deletes, so what a deep picture has left is the survivors against
+    /// the half-width with nothing to contrast them against.
+    /// </para>
+    /// <para>
+    /// A value rather than prose so every place that renders this report reads the same answer -
+    /// the chart, which replaces each panel with a statement of why it is missing, and the
+    /// epilogue, which lists them. A picture that silently dropped a panel would look like a run in
+    /// which nothing happened there.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<SurvivorPanel> Omitted => omitted;
+
     /// <summary>Gets how many rationals were still standing after each enclosure, in order.</summary>
     /// <remarks>
+    /// <para>
+    /// One entry per enclosure from a chart walk, and <b>none from a deep one</b>, which walks once
+    /// with every enclosure and so never learns what any shorter prefix admits.
+    /// <see cref="Omitted"/> carries <see cref="SurvivorPanel.Collapse"/> in that case, and
+    /// <see cref="SurvivorCount"/> is the final figure either way.
+    /// </para>
     /// <para>
     /// Nonincreasing by construction: each entry counts the survivors of one more enclosure than
     /// the last, and an intersection only shrinks. The first entry is the count under a single
@@ -108,7 +178,11 @@ internal sealed class SurvivorReport
     public IReadOnlyList<BigRational> Survivors => survivors;
 
     /// <summary>Gets how many survivors there are, which <see cref="Survivors"/> may not list in full.</summary>
-    public long SurvivorCount => counts.Length == 0 ? 0 : counts[^1];
+    /// <remarks>
+    /// Held rather than read off <see cref="Counts"/>, since a deep walk has no counts to read it
+    /// from. For a chart walk the two agree: this is the last entry.
+    /// </remarks>
+    public long SurvivorCount { get; }
 
     /// <summary>Gets the candidates whose distances are worth plotting: the survivors, and the nearest excluded.</summary>
     /// <remarks>
@@ -129,6 +203,10 @@ internal sealed class SurvivorReport
     /// The survivors go first so a legend reads answer-first, then the nearest that are not
     /// already there. Both come from one pass each: the survivors from the last enclosure's walk,
     /// the nearest from the first's.
+    /// </para>
+    /// <para>
+    /// A deep walk has no first pass, so it follows the survivors alone and <see cref="Omitted"/>
+    /// carries <see cref="SurvivorPanel.NearestExcluded"/>.
     /// </para>
     /// </remarks>
     public IReadOnlyList<BigRational> Tracked => tracked;
@@ -316,6 +394,7 @@ internal sealed class SurvivorReport
     /// Called with each enclosure's index and the count still standing after it, so a caller can
     /// report progress on a walk whose first step is much the most expensive. May be null.
     /// </param>
+    /// <param name="walk">The walk to call once per prefix; <see cref="SurvivorSearch.Survivors"/> when null.</param>
     /// <returns>The report.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
@@ -334,16 +413,11 @@ internal sealed class SurvivorReport
         IReadOnlyList<Approximation> enclosures,
         BigInteger denominatorBound,
         int trackedCap,
-        Action<int, long>? afterEach = null)
+        Action<int, long>? afterEach = null,
+        SurvivorWalk? walk = null)
     {
-        ArgumentNullException.ThrowIfNull(enclosures);
-        ArgumentOutOfRangeException.ThrowIfLessThan(trackedCap, 1);
-
-        if (enclosures.Count == 0)
-        {
-            throw new ArgumentException(
-                "A survivor report needs at least one enclosure to intersect.", nameof(enclosures));
-        }
+        Validate(enclosures, trackedCap);
+        walk ??= SurvivorSearch.Survivors;
 
         var counts = new long[enclosures.Count];
         var nearest = new List<(BigRational Candidate, BigRational Distance)>();
@@ -358,8 +432,7 @@ internal sealed class SurvivorReport
 
             standing.Clear();
 
-            foreach (BigRational survivor in SurvivorSearch.Survivors(
-                enclosures.Take(index + 1), denominatorBound))
+            foreach (BigRational survivor in walk(enclosures.Take(index + 1), denominatorBound))
             {
                 count++;
 
@@ -381,9 +454,88 @@ internal sealed class SurvivorReport
         return new SurvivorReport(
             [.. enclosures],
             counts,
+            counts[^1],
             [.. standing],
             Follow(standing, nearest, trackedCap),
-            denominatorBound);
+            denominatorBound,
+            []);
+    }
+
+    /// <summary>Intersects every enclosure in one walk, producing the survivor set and nothing that needs a prefix.</summary>
+    /// <param name="enclosures">The enclosures, in order. At least one.</param>
+    /// <param name="denominatorBound">The largest denominator to consider.</param>
+    /// <param name="trackedCap">How many survivors the distance chart may follow. At least one.</param>
+    /// <param name="walk">The walk to call, once; <see cref="SurvivorSearch.Survivors"/> when null.</param>
+    /// <returns>The report, with <see cref="Omitted"/> naming the two panels a single walk cannot produce.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="denominatorBound"/> is negative, or <paramref name="trackedCap"/> is below one.
+    /// </exception>
+    /// <remarks>
+    /// <para>
+    /// <b>The same survivor set as <see cref="Of"/>, element for element</b> - ruling 4 on
+    /// <c>halheinrich/Math#64</c>. <see cref="SurvivorSearch"/> intersects every enclosure it is
+    /// given and seeds from the narrowest, so this one call returns exactly what <see cref="Of"/>'s
+    /// last prefix returns. Nothing is weakened and no searcher is written: it is a call site
+    /// making one call where the chart makes one per prefix.
+    /// </para>
+    /// <para>
+    /// <b>What it costs is the pictures.</b> The chart's widest prefix is what dominates its price
+    /// and is also what the collapse's first point and the nearest-excluded family are made from,
+    /// so skipping that walk loses both. <see cref="Omitted"/> says so. Rebuilding the family by
+    /// walking the widest separately would spend the exact cost this exists to avoid, and having
+    /// the search report near misses is a change to a contract whose promise is "everything still
+    /// standing" - a separate question, left for its own issue.
+    /// </para>
+    /// <para>
+    /// The walk is the final prefix, seeded from the narrowest enclosure, so at a derived bound its
+    /// inner loop holds about one candidate and the whole cost is stepping the denominators.
+    /// <see cref="SurvivorRun.Size"/> prices it that way.
+    /// </para>
+    /// </remarks>
+    public static SurvivorReport Deep(
+        IReadOnlyList<Approximation> enclosures,
+        BigInteger denominatorBound,
+        int trackedCap,
+        SurvivorWalk? walk = null)
+    {
+        Validate(enclosures, trackedCap);
+        walk ??= SurvivorSearch.Survivors;
+
+        long count = 0;
+        var standing = new List<BigRational>();
+
+        foreach (BigRational survivor in walk(enclosures, denominatorBound))
+        {
+            count++;
+
+            if (standing.Count < SurvivorsShown)
+            {
+                standing.Add(survivor);
+            }
+        }
+
+        return new SurvivorReport(
+            [.. enclosures],
+            [],
+            count,
+            [.. standing],
+            Follow(standing, [], trackedCap),
+            denominatorBound,
+            [.. DeepOmits]);
+    }
+
+    /// <summary>The argument checks both walks share, made before either costs anything.</summary>
+    private static void Validate(IReadOnlyList<Approximation> enclosures, int trackedCap)
+    {
+        ArgumentNullException.ThrowIfNull(enclosures);
+        ArgumentOutOfRangeException.ThrowIfLessThan(trackedCap, 1);
+
+        if (enclosures.Count == 0)
+        {
+            throw new ArgumentException(NoEnclosuresMessage, nameof(enclosures));
+        }
     }
 
     /// <summary>The survivors first, then the nearest candidates not already among them.</summary>

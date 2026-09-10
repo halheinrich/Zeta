@@ -383,9 +383,9 @@ public sealed class SurvivorReportTests
         // Decidable without a search, which is the whole point: the denominator is known in
         // advance from section 1's identity and Q from enclosures the pipeline has already
         // realised. One below refuses, exactly at it does not.
-        Assert.NotNull(SurvivorRun.RefuseUnreachableControl(order, denominator - 1));
-        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, denominator));
-        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, denominator + 1));
+        Assert.NotNull(SurvivorRun.RefuseUnreachableControl(order, denominator - 1, SurvivorMode.Chart));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, denominator, SurvivorMode.Chart));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, denominator + 1, SurvivorMode.Chart));
     }
 
     [Fact]
@@ -395,7 +395,7 @@ public sealed class SurvivorReportTests
         // denominator is 43,867, so the survivor set would have come back EMPTY - which the
         // epilogue calls "a refutation, and the strongest result this bench produces". A false
         // refutation of a true answer, and nothing on the page to say so.
-        string? refusal = SurvivorRun.RefuseUnreachableControl(18, 16_384);
+        string? refusal = SurvivorRun.RefuseUnreachableControl(18, 16_384, SurvivorMode.Chart);
 
         Assert.NotNull(refusal);
         Assert.Contains("38979295480125/43867", refusal, StringComparison.Ordinal);
@@ -412,8 +412,8 @@ public sealed class SurvivorReportTests
         // Not an oversight and not a gap. Nobody knows a denominator to compare against at an odd
         // order - that is the question - so there is no bound this could check, and an odd run's
         // empty survivor set is a genuine refutation rather than a false one.
-        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, 1));
-        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, BigInteger.Pow(10, 12)));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, 1, SurvivorMode.Chart));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, BigInteger.Pow(10, 12), SurvivorMode.Chart));
     }
 
     [Theory]
@@ -437,7 +437,7 @@ public sealed class SurvivorReportTests
         Assert.True(
             reached >= EvenZetaRatio.ReachableFrom(order),
             Inv($"1e-{exponent} derives Q = {reached}, short of {EvenZetaRatio.ReachableFrom(order)}."));
-        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, reached));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, reached, SurvivorMode.Chart));
     }
 
     [Fact]
@@ -456,7 +456,7 @@ public sealed class SurvivorReportTests
     {
         // h*Q^2 + Q with h = 1/100 and Q = 100: a hundred from the interval widths and a hundred
         // from the one endpoint each denominator contributes.
-        Assert.Equal(200, SurvivorRun.Estimate([At(BigRational.FromInteger(6), 1, 100)], 100));
+        Assert.Equal(200, SurvivorRun.Estimate([At(BigRational.FromInteger(6), 1, 100)], 100, SurvivorMode.Chart));
     }
 
     [Fact]
@@ -473,7 +473,7 @@ public sealed class SurvivorReportTests
             At(BigRational.FromInteger(6), 1, 400),
         ];
 
-        Assert.Equal(475, SurvivorRun.Estimate(enclosures, 100));
+        Assert.Equal(475, SurvivorRun.Estimate(enclosures, 100, SurvivorMode.Chart));
     }
 
     [Fact]
@@ -496,8 +496,8 @@ public sealed class SurvivorReportTests
             At(BigRational.FromInteger(6), 1, 100),
         ];
 
-        Assert.Equal(325, SurvivorRun.Estimate(tightens, 100));
-        Assert.Equal(325 + 25 + 100, SurvivorRun.Estimate(widensBack, 100));
+        Assert.Equal(325, SurvivorRun.Estimate(tightens, 100, SurvivorMode.Chart));
+        Assert.Equal(325 + 25 + 100, SurvivorRun.Estimate(widensBack, 100, SurvivorMode.Chart));
     }
 
     [Fact]
@@ -510,8 +510,8 @@ public sealed class SurvivorReportTests
         Approximation sliver = At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 9));
         IReadOnlyList<Approximation> eight = [.. Enumerable.Repeat(sliver, 8)];
 
-        Assert.Equal(1_000, SurvivorRun.Estimate([sliver], 1_000));
-        Assert.Equal(8_000, SurvivorRun.Estimate(eight, 1_000));
+        Assert.Equal(1_000, SurvivorRun.Estimate([sliver], 1_000, SurvivorMode.Chart));
+        Assert.Equal(8_000, SurvivorRun.Estimate(eight, 1_000, SurvivorMode.Chart));
     }
 
     [Fact]
@@ -523,12 +523,12 @@ public sealed class SurvivorReportTests
 
         Assert.Equal(
             BigInteger.Pow(10, 22) + bound,
-            SurvivorRun.Estimate([At(BigRational.FromInteger(6), 1, 100)], bound));
+            SurvivorRun.Estimate([At(BigRational.FromInteger(6), 1, 100)], bound, SurvivorMode.Chart));
     }
 
     [Fact]
     public void Estimate_RefusesNoEnclosuresAtAll() =>
-        Assert.Throws<ArgumentException>(() => SurvivorRun.Estimate([], 100));
+        Assert.Throws<ArgumentException>(() => SurvivorRun.Estimate([], 100, SurvivorMode.Chart));
 
     // ---------- the budget, which is a predicted time and not a count ----------
 
@@ -552,7 +552,7 @@ public sealed class SurvivorReportTests
     /// <summary>A run priced past the budget, so a test can read what the refusal says about it.</summary>
     private static SurvivorRefusal Refused(BigInteger bound, WalkPrice? price = null)
     {
-        SurvivorRefusal? refusal = SurvivorRun.Refuse(Wide, bound, price ?? CandidateMicrosecond);
+        SurvivorRefusal? refusal = SurvivorRun.Refuse(Wide, bound, price ?? CandidateMicrosecond, SurvivorMode.Chart);
 
         Assert.NotNull(refusal);
         return refusal.Value;
@@ -563,8 +563,8 @@ public sealed class SurvivorReportTests
     {
         IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
 
-        Assert.Null(SurvivorRun.Refuse(enclosures, 100, CandidateMicrosecond));
-        Assert.NotNull(SurvivorRun.Refuse(enclosures, BigInteger.Pow(10, 9), CandidateMicrosecond));
+        Assert.Null(SurvivorRun.Refuse(enclosures, 100, CandidateMicrosecond, SurvivorMode.Chart));
+        Assert.NotNull(SurvivorRun.Refuse(enclosures, BigInteger.Pow(10, 9), CandidateMicrosecond, SurvivorMode.Chart));
     }
 
     [Fact]
@@ -578,9 +578,9 @@ public sealed class SurvivorReportTests
         IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
         WalkPrice dearer = CandidateMicrosecond with { PerCandidate = CandidateMicrosecond.PerCandidate * 5 };
 
-        Assert.Equal(100_000_000, SurvivorRun.Size(enclosures, 100_000).Candidates);
-        Assert.Null(SurvivorRun.Refuse(enclosures, 100_000, CandidateMicrosecond));
-        Assert.NotNull(SurvivorRun.Refuse(enclosures, 100_000, dearer));
+        Assert.Equal(100_000_000, SurvivorRun.Size(enclosures, 100_000, SurvivorMode.Chart).Candidates);
+        Assert.Null(SurvivorRun.Refuse(enclosures, 100_000, CandidateMicrosecond, SurvivorMode.Chart));
+        Assert.NotNull(SurvivorRun.Refuse(enclosures, 100_000, dearer, SurvivorMode.Chart));
     }
 
     [Fact]
@@ -593,9 +593,9 @@ public sealed class SurvivorReportTests
         Approximation sliver = At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 20));
         IReadOnlyList<Approximation> forty = [.. Enumerable.Repeat(sliver, 40)];
 
-        Assert.Equal(BigInteger.Zero, SurvivorRun.Size(forty, 40_000_000).Candidates);
-        Assert.Null(SurvivorRun.Refuse(forty, 40_000_000, CandidateMicrosecond));
-        Assert.NotNull(SurvivorRun.Refuse(forty, 40_000_000, DenominatorMicrosecond));
+        Assert.Equal(BigInteger.Zero, SurvivorRun.Size(forty, 40_000_000, SurvivorMode.Chart).Candidates);
+        Assert.Null(SurvivorRun.Refuse(forty, 40_000_000, CandidateMicrosecond, SurvivorMode.Chart));
+        Assert.NotNull(SurvivorRun.Refuse(forty, 40_000_000, DenominatorMicrosecond, SurvivorMode.Chart));
     }
 
     [Fact]
@@ -607,7 +607,7 @@ public sealed class SurvivorReportTests
         Approximation sliver = At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 20));
 
         Assert.Null(SurvivorRun.Refuse(
-            [sliver], BigInteger.Pow(10, 12), new WalkPrice(BigRational.Zero, BigRational.Zero, 0, 0)));
+            [sliver], BigInteger.Pow(10, 12), new WalkPrice(BigRational.Zero, BigRational.Zero, 0, 0), SurvivorMode.Chart));
     }
 
     [Fact]
@@ -616,9 +616,9 @@ public sealed class SurvivorReportTests
         IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
 
         Assert.Throws<ArgumentOutOfRangeException>(() => SurvivorRun.Refuse(
-            enclosures, 100, CandidateMicrosecond with { PerCandidate = -CandidateMicrosecond.PerCandidate }));
+            enclosures, 100, CandidateMicrosecond with { PerCandidate = -CandidateMicrosecond.PerCandidate }, SurvivorMode.Chart));
         Assert.Throws<ArgumentOutOfRangeException>(() => SurvivorRun.Refuse(
-            enclosures, 100, DenominatorMicrosecond with { PerDenominator = -DenominatorMicrosecond.PerDenominator }));
+            enclosures, 100, DenominatorMicrosecond with { PerDenominator = -DenominatorMicrosecond.PerDenominator }, SurvivorMode.Chart));
     }
 
     [Fact]
@@ -686,7 +686,7 @@ public sealed class SurvivorReportTests
         // carries the size, the price and the bound it was reached from.
         SurvivorRefusal refusal = Refused(BigInteger.Pow(10, 9));
 
-        Assert.Equal(SurvivorRun.Size(Wide, BigInteger.Pow(10, 9)), refusal.Size);
+        Assert.Equal(SurvivorRun.Size(Wide, BigInteger.Pow(10, 9), SurvivorMode.Chart), refusal.Size);
         Assert.Equal(BigInteger.Pow(10, 9), refusal.DenominatorBound);
         Assert.Equal(1, refusal.Prefixes);
         Assert.Equal(refusal.Price.Seconds(refusal.Size), refusal.PredictedSeconds);
@@ -710,8 +710,8 @@ public sealed class SurvivorReportTests
         BigInteger shipped = SurvivorReport.DerivedBound(At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 8)));
         BigInteger deeper = SurvivorReport.DerivedBound(At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 12)));
 
-        Assert.Null(SurvivorRun.Refuse(enclosures, shipped, CandidateMicrosecond));
-        Assert.NotNull(SurvivorRun.Refuse(enclosures, deeper, CandidateMicrosecond));
+        Assert.Null(SurvivorRun.Refuse(enclosures, shipped, CandidateMicrosecond, SurvivorMode.Chart));
+        Assert.NotNull(SurvivorRun.Refuse(enclosures, deeper, CandidateMicrosecond, SurvivorMode.Chart));
     }
 
     // ---------- the two loops, counted apart ----------
@@ -724,15 +724,15 @@ public sealed class SurvivorReportTests
         Approximation wide = At(BigRational.FromInteger(6), 1, 100);
         Approximation sliver = At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 20));
 
-        Assert.Equal(300, SurvivorRun.Size([wide, wide, wide], 100).Denominators);
-        Assert.Equal(300, SurvivorRun.Size([sliver, sliver, sliver], 100).Denominators);
+        Assert.Equal(300, SurvivorRun.Size([wide, wide, wide], 100, SurvivorMode.Chart).Denominators);
+        Assert.Equal(300, SurvivorRun.Size([sliver, sliver, sliver], 100, SurvivorMode.Chart).Denominators);
     }
 
     [Fact]
     public void Size_AddsUpToWhatTheReportsQuote() =>
         Assert.Equal(
-            SurvivorRun.Estimate([At(BigRational.FromInteger(6), 1, 100)], 100),
-            SurvivorRun.Size([At(BigRational.FromInteger(6), 1, 100)], 100).Total);
+            SurvivorRun.Estimate([At(BigRational.FromInteger(6), 1, 100)], 100, SurvivorMode.Chart),
+            SurvivorRun.Size([At(BigRational.FromInteger(6), 1, 100)], 100, SurvivorMode.Chart).Total);
 
     // ---------- the calibration sample, whose size is decidable and whose timing is not ----------
 
@@ -760,9 +760,9 @@ public sealed class SurvivorReportTests
         // is documented rather than tuned away.
         IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
 
-        Assert.True(SurvivorRun.Size(enclosures, 512).Total < SurvivorRun.SampleCandidates);
-        Assert.True(SurvivorRun.Size(enclosures, 1_024).Total >= SurvivorRun.SampleCandidates);
-        Assert.Equal(1_024, SurvivorRun.SampleBound(enclosures, BigInteger.Pow(10, 9)));
+        Assert.True(SurvivorRun.Size(enclosures, 512, SurvivorMode.Chart).Total < SurvivorRun.SampleCandidates);
+        Assert.True(SurvivorRun.Size(enclosures, 1_024, SurvivorMode.Chart).Total >= SurvivorRun.SampleCandidates);
+        Assert.Equal(1_024, SurvivorRun.SampleBound(enclosures, BigInteger.Pow(10, 9), SurvivorMode.Chart));
     }
 
     [Fact]
@@ -776,8 +776,8 @@ public sealed class SurvivorReportTests
         Approximation sliver = At(BigRational.FromInteger(6), 1, BigInteger.Pow(10, 20));
 
         Assert.Equal(
-            SurvivorRun.SampleBound([wide], BigInteger.Pow(10, 9)),
-            SurvivorRun.SampleBound([wide, sliver, sliver, sliver], BigInteger.Pow(10, 9)));
+            SurvivorRun.SampleBound([wide], BigInteger.Pow(10, 9), SurvivorMode.Chart),
+            SurvivorRun.SampleBound([wide, sliver, sliver, sliver], BigInteger.Pow(10, 9), SurvivorMode.Chart));
     }
 
     [Fact]
@@ -788,10 +788,10 @@ public sealed class SurvivorReportTests
         // of Q rather than at Q.
         IReadOnlyList<Approximation> enclosures = [At(BigRational.FromInteger(6), 1, 100)];
 
-        Assert.Equal(1_024, SurvivorRun.SampleBound(enclosures, 8_192));
-        Assert.Equal(512, SurvivorRun.SampleBound(enclosures, 2_048));
-        Assert.Equal(32, SurvivorRun.SampleBound(enclosures, 100));
-        Assert.Equal(BigInteger.Zero, SurvivorRun.SampleBound(enclosures, 0));
+        Assert.Equal(1_024, SurvivorRun.SampleBound(enclosures, 8_192, SurvivorMode.Chart));
+        Assert.Equal(512, SurvivorRun.SampleBound(enclosures, 2_048, SurvivorMode.Chart));
+        Assert.Equal(32, SurvivorRun.SampleBound(enclosures, 100, SurvivorMode.Chart));
+        Assert.Equal(BigInteger.Zero, SurvivorRun.SampleBound(enclosures, 0, SurvivorMode.Chart));
     }
 
     [Fact]
@@ -801,7 +801,7 @@ public sealed class SurvivorReportTests
         // stopwatch reading, and ../AGENTS.md section Testing discipline keeps a test off the wall
         // clock - which is also why the guard is split the way it is: Size and SampleBound decide
         // what to measure, Refuse decides what to do with it, and all three are pure.
-        WalkPrice free = SurvivorRun.Calibrate([At(BigRational.FromInteger(6), 1, 100)], 0);
+        WalkPrice free = SurvivorRun.Calibrate([At(BigRational.FromInteger(6), 1, 100)], 0, SurvivorMode.Chart);
 
         Assert.Equal(BigRational.Zero, free.PerDenominator);
         Assert.Equal(BigRational.Zero, free.PerCandidate);
@@ -864,16 +864,16 @@ public sealed class SurvivorReportTests
         // Literals, not the shipped constants, for the reason TargetRunGuardTests spells out about
         // its own: a test written against the constant moves with it, and this one exists to make
         // moving the default a deliberate act that reddens something.
-        Assert.Null(SurvivorRun.Interpret([], out SurvivorRequest request));
+        Assert.Null(SurvivorRun.Interpret([], SurvivorMode.Chart, out SurvivorRequest request));
 
-        Assert.Equal(new SurvivorRequest(2, 2, 8), request);
+        Assert.Equal(new SurvivorRequest(2, 2, 8, SurvivorMode.Chart), request);
         Assert.Equal(TargetSchedule.Decades(2, 8), request.Schedule());
     }
 
     [Fact]
     public void Interpret_TakesAnOrderAloneAndLeavesTheScheduleAtItsDefault()
     {
-        Assert.Null(SurvivorRun.Interpret(["3"], out SurvivorRequest request));
+        Assert.Null(SurvivorRun.Interpret(["3"], SurvivorMode.Chart, out SurvivorRequest request));
 
         Assert.Equal(3, request.Order);
         Assert.Equal(TargetSchedule.Decades(2, 8), request.Schedule());
@@ -884,9 +884,9 @@ public sealed class SurvivorReportTests
     {
         // The whole change: an explicit pair reaches TargetSchedule.Decades unaltered, so the run
         // is driven to the targets that were asked for rather than to a constant pair.
-        Assert.Null(SurvivorRun.Interpret(["3", "2", "12"], out SurvivorRequest request));
+        Assert.Null(SurvivorRun.Interpret(["3", "2", "12"], SurvivorMode.Chart, out SurvivorRequest request));
 
-        Assert.Equal(new SurvivorRequest(3, 2, 12), request);
+        Assert.Equal(new SurvivorRequest(3, 2, 12, SurvivorMode.Chart), request);
         Assert.Equal(TargetSchedule.Decades(2, 12), request.Schedule());
         Assert.NotEqual(TargetSchedule.Decades(2, 8), request.Schedule());
     }
@@ -896,7 +896,7 @@ public sealed class SurvivorReportTests
     {
         // A lone exponent could name either end, and the two readings differ by ten decades of
         // cost per decade of disagreement. Taken as a pair or not at all.
-        string? refusal = SurvivorRun.Interpret(["3", "12"], out SurvivorRequest request);
+        string? refusal = SurvivorRun.Interpret(["3", "12"], SurvivorMode.Chart, out SurvivorRequest request);
 
         Assert.NotNull(refusal);
         Assert.Contains("both ends", refusal, StringComparison.Ordinal);
@@ -905,7 +905,7 @@ public sealed class SurvivorReportTests
 
     [Fact]
     public void Interpret_RefusesMoreArgumentsThanTheCommandHas() =>
-        Assert.NotNull(SurvivorRun.Interpret(["3", "2", "12", "1"], out _));
+        Assert.NotNull(SurvivorRun.Interpret(["3", "2", "12", "1"], SurvivorMode.Chart, out _));
 
     [Theory]
     [InlineData("three")]
@@ -913,7 +913,7 @@ public sealed class SurvivorReportTests
     [InlineData("")]
     public void Interpret_RefusesAnOrderThatIsNotAWholeNumber(string order)
     {
-        string? refusal = SurvivorRun.Interpret([order], out _);
+        string? refusal = SurvivorRun.Interpret([order], SurvivorMode.Chart, out _);
 
         Assert.NotNull(refusal);
         Assert.Contains("is not an order", refusal, StringComparison.Ordinal);
@@ -926,7 +926,7 @@ public sealed class SurvivorReportTests
     public void Interpret_RefusesAnExponentThatIsNotAWholeNumber(string first, string last)
     {
         // The same treatment the order argument has always had, in the two new positions.
-        string? refusal = SurvivorRun.Interpret(["3", first, last], out _);
+        string? refusal = SurvivorRun.Interpret(["3", first, last], SurvivorMode.Chart, out _);
 
         Assert.NotNull(refusal);
         Assert.Contains("is not an exponent", refusal, StringComparison.Ordinal);
@@ -936,7 +936,7 @@ public sealed class SurvivorReportTests
     public void Interpret_ReportsTheFirstUnreadableArgumentAndNotTheLast()
     {
         // Both exponents are unreadable; the message names the one the caller would fix first.
-        string? refusal = SurvivorRun.Interpret(["3", "two", "twelve"], out _);
+        string? refusal = SurvivorRun.Interpret(["3", "two", "twelve"], SurvivorMode.Chart, out _);
 
         Assert.Contains("'two'", refusal, StringComparison.Ordinal);
         Assert.DoesNotContain("'twelve'", refusal, StringComparison.Ordinal);
@@ -947,15 +947,15 @@ public sealed class SurvivorReportTests
     {
         // Neither refusal is reachable only by starting a run - which is the whole reason the
         // reading of the arguments was split from the acting on them.
-        Assert.Equal(SurvivorRun.RefuseOrder(1), SurvivorRun.Interpret(["1"], out _));
-        Assert.Equal(SurvivorRun.RefuseSchedule(9, 3), SurvivorRun.Interpret(["3", "9", "3"], out _));
+        Assert.Equal(SurvivorRun.RefuseOrder(1), SurvivorRun.Interpret(["1"], SurvivorMode.Chart, out _));
+        Assert.Equal(SurvivorRun.RefuseSchedule(9, 3), SurvivorRun.Interpret(["3", "9", "3"], SurvivorMode.Chart, out _));
     }
 
     // ---------- what the reports say the run was ----------
 
     [Fact]
     public void ScheduleLabel_NamesBothEndsOfWhatWasAskedFor() =>
-        Assert.Equal("1e-3 .. 1e-11", new SurvivorRequest(3, 3, 11).ScheduleLabel);
+        Assert.Equal("1e-3 .. 1e-11", new SurvivorRequest(3, 3, 11, SurvivorMode.Chart).ScheduleLabel);
 
     [Fact]
     public void Preamble_ReportsTheScheduleThatRanAndNotTheDefault()
@@ -965,7 +965,7 @@ public sealed class SurvivorReportTests
         // SVG's caption carries the same label from the same property, so they cannot disagree.
         using var notes = new StringWriter(CultureInfo.InvariantCulture);
 
-        SurvivorRun.Preamble(notes, new SurvivorRequest(3, 3, 11), 9);
+        SurvivorRun.Preamble(notes, new SurvivorRequest(3, 3, 11, SurvivorMode.Chart), 9);
 
         string written = notes.ToString();
 
@@ -1040,7 +1040,333 @@ public sealed class SurvivorReportTests
         }
     }
 
+    // ---------- the deep walk: one call, the same answer ----------
+
+    /// <summary>
+    /// Enclosure lists chosen to exercise what could make one walk differ from the chart's last
+    /// prefix: a pair that does not nest, a list whose narrowest is not its last, and a set of
+    /// survivors larger than <see cref="SurvivorReport.SurvivorsShown"/>.
+    /// </summary>
+    private static readonly (IReadOnlyList<Approximation> Enclosures, int Bound)[] Fixtures =
+    [
+        ([At(BigRational.FromInteger(6), 1, 2), At(BigRational.FromInteger(6), 1, 4)], 2),
+        ([At(BigRational.FromInteger(6), 1, 10), At(Ratio(61, 10), 1, 10)], 10),
+        ([At(BigRational.FromInteger(6), 1, 10), At(Ratio(601, 100), 1, 1000), At(Ratio(1201, 200), 1, 100)], 200),
+        ([At(Ratio(63, 10), 1, 10)], 1),
+        ([At(BigRational.FromInteger(6), 1, 2)], 40),
+    ];
+
+    [Fact]
+    public void Deep_ReturnsTheChartsFinalRowElementForElement()
+    {
+        // Ruling 4's whole claim, and the test that matters: nothing is weakened. SurvivorSearch
+        // intersects every enclosure it is handed and seeds from the narrowest, so one walk over
+        // all of them IS the chart's last prefix - and the fixtures include the non-nesting pair,
+        // which a deep walk filtering on the latest enclosure would get wrong.
+        for (int index = 0; index < Fixtures.Length; index++)
+        {
+            (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[index];
+
+            SurvivorReport chart = SurvivorReport.Of(enclosures, bound, Cap);
+            SurvivorReport deep = SurvivorReport.Deep(enclosures, bound, Cap);
+
+            Assert.Equal(chart.Survivors, deep.Survivors);
+            Assert.Equal(chart.Counts[^1], deep.SurvivorCount);
+            Assert.Equal(chart.SurvivorCount, deep.SurvivorCount);
+            Assert.Equal(chart.DenominatorBound, deep.DenominatorBound);
+        }
+
+        Assert.True(
+            SurvivorReport.Of(Fixtures[^1].Enclosures, Fixtures[^1].Bound, Cap).SurvivorCount > SurvivorReport.SurvivorsShown,
+            "One fixture must hold more survivors than are listed, so the count is compared beyond the list.");
+    }
+
+    [Fact]
+    public void Deep_ReturnsTheChartsFinalRowOnARealRun()
+    {
+        // The same claim against enclosures a pipeline realised rather than ones written by hand:
+        // real providers, real half-widths on the power-of-two grid, centres that do not nest.
+        // The schedule is shallow on purpose - AGENTS.md section Exactness discipline keeps a long
+        // run out of this project - and the chart's walk at it is a few thousand candidates.
+        RatioRun run = RatioRun.Execute(
+            new MachinPi(), 3, new EulerMaclaurinZeta(3), TargetSchedule.Decades(2, 7), SurvivorRun.Searcher);
+        IReadOnlyList<Approximation> enclosures = SurvivorReport.Distinct(SurvivorReport.EnclosuresOf(run));
+        BigInteger bound = SurvivorReport.DerivedBound(enclosures[^1]);
+
+        SurvivorReport chart = SurvivorReport.Of(enclosures, bound, Cap);
+        SurvivorReport deep = SurvivorReport.Deep(enclosures, bound, Cap);
+
+        Assert.True(enclosures.Count > 1, "The run must realise more than one enclosure to have prefixes at all.");
+        Assert.Equal(chart.Survivors, deep.Survivors);
+        Assert.Equal(chart.SurvivorCount, deep.SurvivorCount);
+    }
+
+    [Fact]
+    public void Deep_WalksOnceWithEveryEnclosure()
+    {
+        // Decidable by counting, not inferred from a clock. The walk is handed through the report's
+        // own seam, the way Searcher_ProposesNothingAtEveryTarget counts through RatioRun's.
+        (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[2];
+        var counting = new CountingWalk();
+
+        SurvivorReport.Deep(enclosures, bound, Cap, counting.Walk);
+
+        Assert.Single(counting.Calls);
+        Assert.Equal(enclosures, counting.Calls[0]);
+    }
+
+    [Fact]
+    public void Of_WalksOncePerPrefix()
+    {
+        // The contrast that makes the count above mean something: the chart pays a walk per
+        // prefix, the first holding the widest enclosure alone - which is the walk deep skips.
+        (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[2];
+        var counting = new CountingWalk();
+
+        SurvivorReport.Of(enclosures, bound, Cap, walk: counting.Walk);
+
+        Assert.Equal(enclosures.Count, counting.Calls.Count);
+
+        for (int index = 0; index < enclosures.Count; index++)
+        {
+            Assert.Equal(enclosures.Take(index + 1), counting.Calls[index]);
+        }
+    }
+
+    [Fact]
+    public void Deep_OmitsTheCollapseAndTheNearestExcluded()
+    {
+        // Both, not one: the nearest excluded come from the widest prefix's walk, which is the
+        // walk deep deletes. Asserted on the value the chart and the epilogue both render from.
+        (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[0];
+
+        SurvivorReport deep = SurvivorReport.Deep(enclosures, bound, Cap);
+
+        Assert.Equal([SurvivorPanel.Collapse, SurvivorPanel.NearestExcluded], deep.Omitted);
+        Assert.Empty(deep.Counts);
+    }
+
+    [Fact]
+    public void Of_OmitsNothing()
+    {
+        (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[0];
+
+        Assert.Empty(SurvivorReport.Of(enclosures, bound, Cap).Omitted);
+    }
+
+    [Fact]
+    public void Deep_FollowsTheSurvivorsAlone()
+    {
+        // The chart follows 6 and then the near misses 11/2 and 13/2, which died at the second
+        // enclosure. A deep walk never counted the first prefix, so it has nobody to follow but
+        // the survivor - and must not invent a family it did not measure.
+        (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[0];
+
+        SurvivorReport chart = SurvivorReport.Of(enclosures, bound, Cap);
+        SurvivorReport deep = SurvivorReport.Deep(enclosures, bound, Cap);
+
+        Assert.Contains(Ratio(11, 2), chart.Tracked);
+        Assert.Equal([BigRational.FromInteger(6)], deep.Tracked);
+    }
+
+    [Fact]
+    public void Deep_RefusesWhatOfRefuses()
+    {
+        Assert.Throws<ArgumentException>(() => SurvivorReport.Deep([], 10, Cap));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => SurvivorReport.Deep([At(BigRational.FromInteger(6), 1, 2)], 10, 0));
+    }
+
+    /// <summary>A walk that records every list of enclosures it is handed, then does the real walk.</summary>
+    private sealed class CountingWalk
+    {
+        public List<Approximation[]> Calls { get; } = [];
+
+        public IEnumerable<BigRational> Walk(IEnumerable<Approximation> enclosures, BigInteger denominatorBound)
+        {
+            Approximation[] given = [.. enclosures];
+            Calls.Add(given);
+
+            return SurvivorSearch.Survivors(given, denominatorBound);
+        }
+    }
+
+    // ---------- what the deep walk costs, which is not what the chart costs ----------
+
+    /// <summary>A chart that is dear, whose final prefix is cheap: one wide enclosure and one sliver.</summary>
+    private static readonly Approximation[] DearChartCheapTail =
+    [
+        Approximation.Create(BigRational.FromInteger(6), new BigRational(1, 100)),
+        Approximation.Create(BigRational.FromInteger(6), new BigRational(BigInteger.One, BigInteger.Pow(10, 20))),
+    ];
+
+    [Fact]
+    public void Size_PricesADeepWalkAsTheFinalPrefixAlone()
+    {
+        // The chart walks both prefixes: the wide one alone, 1e-2 * 1000^2 = 10,000 candidates,
+        // then the pair seeded from the sliver, none. Deep walks the pair once. So 2,000
+        // denominators and 10,000 candidates against 1,000 and none.
+        Assert.Equal(new WalkSize(2_000, 10_000), SurvivorRun.Size(DearChartCheapTail, 1_000, SurvivorMode.Chart));
+        Assert.Equal(new WalkSize(1_000, 0), SurvivorRun.Size(DearChartCheapTail, 1_000, SurvivorMode.Deep));
+    }
+
+    [Fact]
+    public void Size_PricesADeepWalkAtItsNarrowestEnclosureWhereverItSits()
+    {
+        // SurvivorSearch seeds from the narrowest, not the last. A list that widens again after
+        // its narrowest must be priced at the narrowest, or the deep estimate would charge for a
+        // walk wider than the one that runs.
+        Approximation wide = At(BigRational.FromInteger(6), 1, 100);
+        Approximation narrow = At(BigRational.FromInteger(6), 1, 400);
+
+        Assert.Equal(new WalkSize(100, 25), SurvivorRun.Size([wide, narrow, wide], 100, SurvivorMode.Deep));
+    }
+
+    [Fact]
+    public void Refuse_PricesTheDeepWalkAndNotTheChart()
+    {
+        // At Q = 10^6 the chart's opening prefix holds 1e-2 * 1e12 = 1e10 candidates - three hours
+        // at a microsecond each. The deep walk holds none of them. A deep guard that priced the
+        // chart would refuse exactly the run deep mode exists to make.
+        BigInteger bound = BigInteger.Pow(10, 6);
+
+        Assert.NotNull(SurvivorRun.Refuse(DearChartCheapTail, bound, CandidateMicrosecond, SurvivorMode.Chart));
+        Assert.Null(SurvivorRun.Refuse(DearChartCheapTail, bound, CandidateMicrosecond, SurvivorMode.Deep));
+    }
+
+    [Fact]
+    public void Refuse_NamesTheLastExponentAsADeepWalksOnlyKnob()
+    {
+        // A deep walk costs Q denominators whatever the first exponent is, so the chart's advice -
+        // raise the first end - would point a deep caller at a knob connected to nothing. Its cost
+        // knob and its claim knob are the same end. Asserted on the values, as the chart's are.
+        SurvivorRefusal? refusal = SurvivorRun.Refuse(
+            DearChartCheapTail, BigInteger.Pow(10, 9), DenominatorMicrosecond, SurvivorMode.Deep);
+
+        Assert.NotNull(refusal);
+        Assert.Equal(SurvivorMode.Deep, refusal.Value.Mode);
+        Assert.Equal(ScheduleEnd.Last, refusal.Value.CostKnob);
+        Assert.Equal(ScheduleEnd.Last, refusal.Value.ClaimKnob);
+        Assert.DoesNotContain("Raise the FIRST exponent", refusal.Value.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SampleBound_SamplesTheDeepWalkItselfAndNotTheWidestEnclosure()
+    {
+        // The chart samples the widest enclosure alone and reaches its 4,000 units at q = 1,024.
+        // The deep walk is almost all denominators, so its own size reaches 4,000 only at 4,096 -
+        // and it is that walk, seeded from the narrowest, whose endpoints the real run rounds.
+        BigInteger bound = BigInteger.Pow(10, 9);
+
+        Assert.Equal(1_024, SurvivorRun.SampleBound(DearChartCheapTail, bound, SurvivorMode.Chart));
+        Assert.Equal(4_096, SurvivorRun.SampleBound(DearChartCheapTail, bound, SurvivorMode.Deep));
+    }
+
+    [Fact]
+    public void SampleBound_NeverSamplesADeepWalkPastItsOwnBound()
+    {
+        // One sample and no second, so there is no room to leave: a run smaller than the sample is
+        // sampled by being run.
+        Assert.Equal(100, SurvivorRun.SampleBound(DearChartCheapTail, 100, SurvivorMode.Deep));
+        Assert.Equal(BigInteger.Zero, SurvivorRun.SampleBound(DearChartCheapTail, 0, SurvivorMode.Deep));
+    }
+
+    [Fact]
+    public void Calibrate_PricesNothingForADeepWalkWithNothingToWalk()
+    {
+        WalkPrice free = SurvivorRun.Calibrate(DearChartCheapTail, 0, SurvivorMode.Deep);
+
+        Assert.Equal(BigRational.Zero, free.PerDenominator);
+        Assert.Equal(BigRational.Zero, free.PerCandidate);
+    }
+
+    // ---------- the deep command, which shares the chart's grammar ----------
+
+    [Fact]
+    public void Interpret_ReadsTheDeepCommandWithTheSameGrammar()
+    {
+        Assert.Null(SurvivorRun.Interpret(["3", "4", "13"], SurvivorMode.Deep, out SurvivorRequest request));
+
+        Assert.Equal(new SurvivorRequest(3, 4, 13, SurvivorMode.Deep), request);
+        Assert.Equal(TargetSchedule.Decades(4, 13), request.Schedule());
+    }
+
+    [Fact]
+    public void Interpret_DefaultsTheDeepCommandExactlyAsTheChart()
+    {
+        Assert.Null(SurvivorRun.Interpret([], SurvivorMode.Deep, out SurvivorRequest request));
+
+        Assert.Equal(new SurvivorRequest(2, 2, 8, SurvivorMode.Deep), request);
+    }
+
+    [Fact]
+    public void Interpret_NamesTheCommandThatWasTypedInItsAdvice()
+    {
+        // A deep caller told to type 'survivors 3 2 12' would be sent to the other walk.
+        string? refusal = SurvivorRun.Interpret(["3", "12"], SurvivorMode.Deep, out _);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("'deep 3 2 12'", refusal, StringComparison.Ordinal);
+        Assert.DoesNotContain("survivors", refusal, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CommandFor_NamesEachModesVerb()
+    {
+        Assert.Equal(Program.SurvivorsCommand, SurvivorRun.CommandFor(SurvivorMode.Chart));
+        Assert.Equal(Program.DeepCommand, SurvivorRun.CommandFor(SurvivorMode.Deep));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SurvivorRun.CommandFor((SurvivorMode)99));
+    }
+
+    [Fact]
+    public void RefuseUnreachableControl_NamesTheDeepCommandToADeepCaller()
+    {
+        string? refusal = SurvivorRun.RefuseUnreachableControl(18, 16_384, SurvivorMode.Deep);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("'deep 18 2 10'", refusal, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Preamble_SaysADeepRunWalksOnceAndTheChartDoesNot()
+    {
+        using var deep = new StringWriter(CultureInfo.InvariantCulture);
+        using var chart = new StringWriter(CultureInfo.InvariantCulture);
+
+        SurvivorRun.Preamble(deep, new SurvivorRequest(3, 4, 13, SurvivorMode.Deep), 10);
+        SurvivorRun.Preamble(chart, new SurvivorRequest(3, 4, 13, SurvivorMode.Chart), 10);
+
+        Assert.Contains("ONE pass over every enclosure", deep.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("ONE pass", chart.ToString(), StringComparison.Ordinal);
+    }
+
     // ---------- the document ----------
+
+    [Fact]
+    public void Chart_DrawsNoCollapseForADeepReportAndSaysWhy()
+    {
+        // Structural rather than a phrase match: the collapse polyline is absent, and in its place
+        // is a heading for every panel Omitted names. One line for the half-width and one per
+        // survivor followed is all a deep picture has.
+        (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[0];
+        SurvivorReport report = SurvivorReport.Deep(enclosures, bound, Cap);
+
+        using var document = new StringWriter(CultureInfo.InvariantCulture);
+        SurvivorChart.Write(document, report, new ChartCaption(
+            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", "SurvivorSearch", "1e-2 .. 1e-4", "Q = 2"));
+
+        XDocument parsed = XDocument.Parse(document.ToString());
+        string drawn = document.ToString();
+
+        Assert.Equal(
+            1 + report.Tracked.Count,
+            parsed.Descendants().Count(node => node.Name.LocalName == "polyline"));
+
+        foreach (SurvivorPanel panel in report.Omitted)
+        {
+            Assert.Contains(SurvivorChart.WhyNotDrawn(panel)[0], drawn, StringComparison.Ordinal);
+        }
+    }
 
     [Fact]
     public void Chart_WritesWellFormedXmlForARealReport()

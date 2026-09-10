@@ -27,7 +27,8 @@ internal enum ScheduleEnd
 /// <param name="Size">How much walking the run would be, counted as its two loops.</param>
 /// <param name="Price">What each of those loops costs here.</param>
 /// <param name="DenominatorBound">The bound the run derived, which the message quotes.</param>
-/// <param name="Prefixes">How many collapse points the walk would have produced.</param>
+/// <param name="Prefixes">How many enclosures the walk would have intersected - collapse points, for a chart.</param>
+/// <param name="Mode">Which walk was priced, which decides which end moves its cost.</param>
 /// <param name="CostKnob">The end to move to bring the run inside the budget.</param>
 /// <param name="ClaimKnob">The end that sets <c>Q</c>, and so what the run would have claimed.</param>
 /// <remarks>
@@ -40,9 +41,15 @@ internal enum ScheduleEnd
 /// would say the wrong thing and a test would see it.
 /// </para>
 /// <para>
-/// Both are constant in this command, and that is not an argument against holding them: the
-/// constant is the claim. It is <i>which</i> end does what, which is precisely what the shipped
-/// message left a reader to guess.
+/// Both are constant for a mode, and that is not an argument against holding them: the constant is
+/// the claim. It is <i>which</i> end does what, which is precisely what the shipped message left a
+/// reader to guess.
+/// </para>
+/// <para>
+/// <b>And the answer differs by mode.</b> A deep walk is the final prefix alone and costs <c>Q</c>
+/// denominators whatever the first exponent is, so raising that end buys it nothing: its cost knob
+/// and its claim knob are the same end, the last. Advice to raise the first exponent, correct for a
+/// chart, would send a deep caller to a knob that is not connected to anything.
 /// </para>
 /// </remarks>
 internal readonly record struct SurvivorRefusal(
@@ -50,6 +57,7 @@ internal readonly record struct SurvivorRefusal(
     WalkPrice Price,
     BigInteger DenominatorBound,
     int Prefixes,
+    SurvivorMode Mode,
     ScheduleEnd CostKnob,
     ScheduleEnd ClaimKnob)
 {
@@ -57,7 +65,29 @@ internal readonly record struct SurvivorRefusal(
     public BigRational PredictedSeconds => Price.Seconds(Size);
 
     /// <summary>Gets the refusal as the command prints it.</summary>
-    public string Message => string.Create(CultureInfo.InvariantCulture,
+    public string Message => Mode == SurvivorMode.Deep ? DeepMessage : ChartMessage;
+
+    /// <summary>The refusal of a deep walk, which has one knob and it is the claim.</summary>
+    private string DeepMessage => string.Create(CultureInfo.InvariantCulture,
+        $"Refusing this run: it is predicted to spend {Presentation.Roughly(PredictedSeconds)} " +
+        $"seconds walking, past the budget of {SurvivorRun.BudgetSeconds}.\n" +
+        $"  the bound   Q = {DenominatorBound}, derived as floor(eps^(-1/2)) from the final enclosure\n" +
+        $"  the walk    {Size.Denominators:N0} denominators and {Size.Candidates:N0} candidates: ONE pass\n" +
+        $"              over all {Prefixes} enclosures, seeded from the narrowest, so nearly all of it\n" +
+        $"              is stepping through 1..Q\n" +
+        $"  the price   {Presentation.Roughly(Price.PerDenominator * SurvivorRun.Million)} microseconds " +
+        $"a denominator, timed here on a sample of that walk\n" +
+        $"\n" +
+        $"A deep walk has one knob, and it is the claim. Its cost is Q denominators whatever the\n" +
+        $"{Name(ScheduleEnd.First).ToUpperInvariant()} exponent is, so raising that buys nothing here. Lowering the " +
+        $"{Name(CostKnob).ToUpperInvariant()} exponent is\n" +
+        $"the only way in, and it divides Q by about sqrt(10) a decade - Q being the bound this run\n" +
+        $"exists to claim.\n" +
+        $"Do not reach for a hand-picked Q instead. That is what made the exploration's second\n" +
+        $"graph misleading, and Q is derived here on purpose.");
+
+    /// <summary>The refusal of a chart walk, whose cost and claim are different ends.</summary>
+    private string ChartMessage => string.Create(CultureInfo.InvariantCulture,
         $"Refusing this run: it is predicted to spend {Presentation.Roughly(PredictedSeconds)} " +
         $"seconds enumerating, past the budget of {SurvivorRun.BudgetSeconds}.\n" +
         $"  the bound   Q = {DenominatorBound}, derived as floor(eps^(-1/2)) from the final enclosure\n" +
