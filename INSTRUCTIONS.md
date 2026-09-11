@@ -70,6 +70,10 @@ than being added when results appear.
   expects — CA1515 is suppressed only under `[**/*Tests.cs]`, so a public type
   here fails the build.
 
+  `Zeta.Tests` references it, for its pure functions, so `dotnet test
+  Zeta.slnx` compiles the runner and a green suite total covers its build. It
+  does not mean any command ran.
+
 ### The survivor set needed no reshaping to compute
 
 `walk` and `target` both report a bound read off the last candidate a sweep
@@ -490,6 +494,27 @@ tend to zero, its share with it, and the other provider would be advanced
 instead — so both are, both bounds vanish, and the propagated error vanishes
 with them.
 
+**Both ways of halting on a component are wrong, in opposite directions.**
+Halting on the power's error alone is the one `../SPEC-rational-ratio.md` § 2
+step 4 states, with its figure. The other is handing each provider the ratio's
+target through `StepFor`, and it **under-refines**. Measured 2026-09-10 on
+π³/ζ(3) with `MachinPi` and `CentralBinomialZeta(3)`, which is Apéry's series,
+at a ratio target of 1e-9 read against the coarsened `Ratio.MaxError` the
+refiner halts on: `StepFor` gives base step 6 and divisor step 10 and realises
+about 1e-7.83, where `RatioRefiner` reaches 7 / 12 and 1e-9.03. No base step
+from 5 to 10 meets the target with the divisor below 12, and base 6 needs 14.
+The uncoarsened propagated error misses too, at about 1e-7.91, so coarsening is
+not what fails it.
+
+Those figures hold that pair of providers and that target fixed. Across targets
+1e-6 … 1e-12 the same shortfall appears with `BorweinZetaThree`, the provider
+`target` runs (6 / 12 against 7 / 14 at 1e-9), with `EulerMaclaurinZeta(3)`,
+and on π⁴/ζ(4) and π⁶/ζ(6): 45 of 49 provider-and-target cases missed. The four
+that met were π²/ζ(2) on `EulerMaclaurinZeta`, and they met by overshoot. The
+ratio weights each provider's error by more than one — about 24.6 on π's and
+21.5 on ζ(3)'s for π³/ζ(3) — so it meets the target only where both providers
+land below their own.
+
 **Inverting that comparison does not fail, it hangs.** Advancing the provider
 whose error is already negligible drives its bound to zero while the other's
 stays put, so the propagated error plateaus above every target. That is the
@@ -685,12 +710,13 @@ no state to default.
   chosen without regard to what it implies is the way to make a run take
   forever. Ruling out every rational of **height** below *H* needs error below
   *H*⁻² — `../SPEC-rational-ratio.md` § 2's law, and it is stated on height
-  rather than on denominator, which this bullet had wrong until step 6c. The
-  searcher's depth tracks ε^(−1/2) for a generic target; a target pinned just
-  outside a low-height rational *p*/*q*₀ costs about 1/(2*q*₀ε) instead, and
-  at ε = 1e−18 the two differ by some 2.4×10⁸. Which regime a real target is
-  in cannot be known in advance, because it is the question being asked, so a
-  budget is a **measured depth plus a hard cap** and never a computed bound.
+  rather than on denominator, which this bullet had wrong until step 6c. How
+  deep the searcher goes is set by the target and falls into two regimes;
+  `../SPEC-rational-ratio.md` § 2, "What a search costs: sweep depth, and why
+  no law sizes a guard", owns both and how far apart they fall. Which regime a
+  real target is in cannot be known in advance, because it is the question
+  being asked, so a budget is a **measured depth plus a hard cap** and never a
+  computed bound.
   `Zeta.Experiments` carries one and `Zeta.Tests/TargetRunGuardTests` holds it
   to the measurement.
 

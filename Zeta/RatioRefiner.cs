@@ -7,13 +7,16 @@ namespace HalHeinrich.Numerics;
 /// <remarks>
 /// <para>
 /// This is the halting rule of <c>SPEC-rational-ratio.md</c> section 2 step 4, and it is the
-/// substance of the pipeline. <b>The target is on the ratio, never on a component.</b> For
-/// pi^3 / zeta(3) the propagation is about <c>0.83*alpha + 21.5*beta</c>: at six terms of each,
-/// the power contributes around <c>2.99e-8</c> and the divisor around <c>2.12e-6</c> against a
-/// ratio error of <c>4.56e-5</c>. Halting when the <i>power's</i> error reached the target would
-/// therefore drive the search some three orders of magnitude deeper than the evidence supports,
-/// and halting when the divisor's did would stop short. The two providers need <b>different
-/// depths</b>, and which depths is not something either of them can answer alone.
+/// substance of the pipeline. <b>The target is on the ratio, never on a component</b>, and both
+/// ways of putting it on a component are wrong in measured directions. Halting on the
+/// <i>power's</i> error reads a bound some three orders of magnitude tighter than the ratio
+/// carries and sweeps deeper on it than the evidence supports; step 4 states the figure, for
+/// pi^3 / zeta(3), and it is not restated here. Handing each provider the target itself, through
+/// <see cref="IRealConstant.StepFor"/>, stops short: for pi^n / zeta(n) the ratio weights each
+/// provider's error by more than one, so it meets the target only where both providers happen to
+/// overshoot their own. This member's <c>INSTRUCTIONS.md</c> § The halting rule is the substance
+/// records the case and by how much. The two providers need <b>different depths</b>, and which
+/// depths is not something either of them can answer alone.
 /// </para>
 /// <para>
 /// <b>The rule.</b> While the ratio's error exceeds the target, refine whichever provider owns the
