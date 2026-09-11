@@ -27,11 +27,12 @@ namespace HalHeinrich.Numerics.Tests;
 /// is asking for.
 /// </para>
 /// <para>
-/// <b>The floor is not derived from the depth by a law.</b> Sweep depth follows <c>eps^(-1/2)</c>
-/// for a generic target and <c>1/(2*q0*eps)</c> for one pinned just outside a low-height rational
-/// <c>p/q0</c>, and at 1e-18 those differ by some 2.4e8 - so a bound computed from the schedule
-/// would have to trust exactly the extrapolation a budget exists to protect against. Which regime
-/// this target is in cannot be known in advance, because it is the question being asked.
+/// <b>The floor is not derived from the depth by a law.</b> Sweep depth falls into two regimes;
+/// <c>../SPEC-rational-ratio.md</c> § 2, "What a search costs: sweep depth, and why no law sizes a
+/// guard", owns both and how far apart they fall, and they are not restated here. Which regime
+/// this target is in cannot be known in advance, because it is the question being asked - so a
+/// bound computed from the schedule would have to trust exactly the extrapolation a budget exists
+/// to protect against.
 /// </para>
 /// <para>
 /// This is a control and belongs here rather than beside the runner, because it has a known

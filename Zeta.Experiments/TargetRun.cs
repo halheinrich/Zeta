@@ -19,18 +19,21 @@ namespace HalHeinrich.Numerics.Experiments;
 /// denominator at or below the last one searched misses the enclosure, <i>for any numerator</i> -
 /// and says that restating it as a height bound is sound but throws the numerator-unbounded part
 /// away. The sweep produces the denominator bound directly. Height order would produce a height
-/// bound and cost a factor of the target's magnitude more, about 25.8x here, since the two
-/// searches end at the same rational with one having reached its numerator and the other its
-/// denominator. Height order earns its place in the zeta(2) walk, where the point is watching a
-/// trail rather than proving a bound.
+/// bound and cost a factor of the target's magnitude more, about 25.8x here. That factor holds
+/// because the two searches end at the same rational, one having reached its numerator and the
+/// other its denominator - which is true only of an enclosure holding at most one integer. With
+/// two or more they can part, as <see cref="HeightSweep"/>'s remarks describe. Every enclosure
+/// this run builds holds none: the widest, its fixed first column at 1e-2, is about
+/// <c>[25.791, 25.799]</c>. Height order earns its place in the zeta(2) walk, where the point is
+/// watching a trail rather than proving a bound.
 /// </para>
 /// <para>
-/// <b>Cost has two regimes and no law sizes a guard.</b> A generic target costs about
-/// <c>eps^(-1/2)</c>; a target pinned just outside a low-height rational <c>p/q0</c> costs about
-/// <c>1/(2*q0*eps)</c>, and at 1e-18 those differ by some 2.4e8. Which regime this target is in
-/// cannot be known in advance, because it is the question being asked. So the ceiling below is a
-/// hard number taken from a measurement, never a bound computed from the schedule - a computed
-/// bound would have to trust the same extrapolation it exists to protect against.
+/// <b>Cost has two regimes and no law sizes a guard.</b> <c>../SPEC-rational-ratio.md</c> § 2,
+/// "What a search costs: sweep depth, and why no law sizes a guard", owns both regimes and how far
+/// apart they fall; they are not restated here. Which regime this target is in cannot be known in
+/// advance, because it is the question being asked. So the ceiling below is a hard number taken
+/// from a measurement, never a bound computed from the schedule - a computed bound would have to
+/// trust the same extrapolation it exists to protect against.
 /// </para>
 /// </remarks>
 internal static class TargetRun
