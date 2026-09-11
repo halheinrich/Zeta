@@ -47,14 +47,21 @@ namespace HalHeinrich.Numerics.Tests;
 /// </para>
 /// <para>
 /// <b>Nothing here can tell <c>Pow</c> from repeated multiplication, and no assertion should be
-/// added claiming otherwise.</b> Measured: replacing the <c>Pow</c> in
-/// <see cref="RatioEnclosure"/> with a chain of multiplications leaves all seventeen control
-/// assertions green and shows up only as extra provider steps. That is not a hole - the refiner
-/// drives to a target on the <i>realised</i> error, so a wider propagation is absorbed by
-/// refining further, and the difference the dependency problem makes is structurally invisible
-/// downstream of an adaptive halt. It is visible at a fixed depth, which is where it is tested:
-/// the same mutation reddens <c>RatioEnclosureTests</c> and
-/// <c>EvenZetaControlTests.PowIsNotRepeatedMultiplication</c>.
+/// added claiming otherwise.</b> Measured 2026-09-10, re-running the mutation first measured on
+/// 2026-09-06: replacing the <c>Pow</c> in <see cref="RatioEnclosure"/> with a chain of
+/// multiplications reddens 3 of the suite's 329 cases, all in <c>RatioEnclosureTests</c>. Every
+/// control stays green - the fifteen cases here, <see cref="SurvivorSetControlTests"/>' eight
+/// and <see cref="NegativeControlTests"/>' five, the last at exponent 1, where the substitution
+/// changes nothing. On this class's schedule it moves no provider step and no realised bound in
+/// any column: the extra width is second order in pi's error, too small at these widths to cross
+/// a power of two. The 2026-09-06 measurement also reported extra provider steps, and those no
+/// longer appear. That is not a hole - were the propagation wider, the refiner would absorb it by
+/// refining further, since it drives to a target on the <i>realised</i> error, and the
+/// difference the dependency problem makes is structurally invisible downstream of an adaptive
+/// halt. It is visible at a fixed depth, which is where it is tested: the same mutation reddens
+/// those three <c>RatioEnclosureTests</c> cases, and
+/// <c>RealConstants.Tests/EvenZetaControlTests</c> holds the distinction on <c>Pow</c> itself,
+/// out of this mutation's reach.
 /// </para>
 /// <para>
 /// <b>Cost.</b> The true ratio is an exact rational of tiny height, so the sweep terminates at
