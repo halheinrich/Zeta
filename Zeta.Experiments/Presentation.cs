@@ -22,12 +22,14 @@ namespace HalHeinrich.Numerics.Experiments;
 /// repository, it estimates a magnitude for a column, and it is never compared against anything.
 /// </para>
 /// <para>
-/// <b>Known duplication, filed rather than fixed.</b> <c>RealConstants.Experiments</c> has its
-/// own <c>Presentation</c> with the same three of these - truncation to decimal, the decimal
-/// exponent, and the earned prefix - and that is one rule about to exist in two members. The
-/// remedy is a published formatting surface, which is a change spanning two repositories that
-/// nobody has planned, and <c>../AGENTS.md</c> § Submodule boundary forbids reaching into the
-/// other member from here. Recorded so the next reader does not mistake it for an oversight.
+/// <b>Known duplication, filed rather than fixed, as <c>halheinrich/Math#72</c>.</b>
+/// <c>RealConstants.Experiments</c> has its own <c>Presentation</c> with the same three of these -
+/// truncation to decimal, the decimal exponent, and the earned prefix - and that is one rule about
+/// to exist in two members. A fourth, <see cref="Magnitude"/>, shares the name and not the choices:
+/// that one prints <c>0</c> to one place where this prints <c>exact</c> to two. The remedy is a
+/// published formatting surface, which is a change spanning two repositories that nobody has
+/// planned, and <c>../AGENTS.md</c> § Submodule boundary forbids reaching into the other member
+/// from here. Recorded so the next reader does not mistake it for an oversight.
 /// </para>
 /// </remarks>
 internal static class Presentation
