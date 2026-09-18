@@ -45,8 +45,8 @@
 # All three dependencies are taken at main, not at the SHAs the umbrella pins.
 # This workflow cannot read those pins without the private umbrella. So this
 # gate tests integration against its dependencies' tips, and can go red for a
-# reason outside this repo. That is deliberate: BigRational is breaking its
-# surface at 0.1.0-preview1 and RationalApproximation's contracts are younger
+# reason outside this repo. That is deliberate: BigRational is a pre-release
+# still breaking its surface and RationalApproximation's contracts are younger
 # still, so a consumer-side gate that notices immediately is worth more than
 # one that agrees with a stale pin. When a red build traces upstream, the fix
 # is upstream. The exposure is larger here than in any sibling for the same

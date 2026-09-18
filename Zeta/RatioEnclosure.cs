@@ -126,8 +126,11 @@ public sealed class RatioEnclosure
     /// This is the quantity a halting rule reads. <c>SPEC-rational-ratio.md</c> section 2 step 4
     /// makes the point with pi^3 / zeta(3), where the propagation is about
     /// <c>0.83*alpha + 21.5*beta</c>: the two providers contribute on wildly different scales, so
-    /// halting on either component's own error - rather than on the propagated total - picks a
-    /// search depth off by orders of magnitude.
+    /// neither component's own error can stand in for the propagated total. Step 4 measures one
+    /// side of that. Halting on the power's error alone demands a bound orders of magnitude
+    /// tighter than the ratio carries and sweeps far deeper on it; the figures are step 4's and
+    /// are not restated here. Halting on the divisor's error alone is unmeasured, and no figure
+    /// is claimed for it.
     /// </para>
     /// </remarks>
     public BigRational PowerShare { get; }

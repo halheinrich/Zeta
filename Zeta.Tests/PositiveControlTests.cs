@@ -250,7 +250,13 @@ public sealed class PositiveControlTests
         // ratio, so the refiner spends its steps where the propagated error is: pi is raised to a
         // power, which amplifies its share, and Machin gains fewer digits per step than
         // Euler-Maclaurin does. Measured, pi runs about twice as deep. A pipeline halting on a
-        // single shared depth, or on either component's own error, would not produce this gap.
+        // single shared depth would not produce this gap, and that is the pipeline this test
+        // tells the rule apart from. It does not tell it from one handing each provider the
+        // target through StepFor, because most of the gap is the two providers' rates rather than
+        // the rule. Measured 2026-09-17 on this schedule, that pipeline reaches pi 44 and zeta
+        // 22-23 at 1e-64, against the refiner's 45-47 and 22-24. It passes every assertion below
+        // while missing the ratio target in 14 of the 15 cells, which is the under-refinement
+        // this member's INSTRUCTIONS.md records under "The halting rule is the substance".
         RatioRun run = Control(order);
 
         for (int column = 1; column < run.Iterations.Count; column++)

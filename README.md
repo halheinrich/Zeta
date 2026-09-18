@@ -55,9 +55,9 @@ predecessor.
 Two things in the run are worth a reader's attention.
 
 - **`2515594/97525` was the simplest candidate at two consecutive columns, and
-  then moved on.** `SPEC-rational-ratio.md` § 2 names that exact value as the
-  reason there is no "unchanged for *k* rounds" stopping rule. It appeared
-  unprompted in the first real run.
+  then moved on.** `SPEC-rational-ratio.md` § 2 names its denominator, `97525`,
+  as one of the two cases that rule out an "unchanged for *k* rounds" stopping
+  rule. It appeared unprompted in the first real run.
 - **`26/1` sits at `|26 − 25.794…|` in every column and never moves**, which is
   what a refuted candidate looks like: the row settles at its true distance
   rather than falling.
