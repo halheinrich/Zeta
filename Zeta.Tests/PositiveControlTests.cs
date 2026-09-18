@@ -244,7 +244,7 @@ public sealed class PositiveControlTests
     [InlineData(2)]
     [InlineData(4)]
     [InlineData(6)]
-    public void TheTwoProvidersAreDrivenToDifferentDepths_WhichIsTheHaltingRuleVisible(int order)
+    public void TheTwoProvidersAreDrivenToDifferentDepths(int order)
     {
         // Section 2 step 4, in the one place a control can watch it work. The target is on the
         // ratio, so the refiner spends its steps where the propagated error is: pi is raised to a
