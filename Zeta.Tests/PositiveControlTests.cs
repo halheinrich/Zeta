@@ -18,8 +18,8 @@ namespace HalHeinrich.Numerics.Tests;
 /// order from 2 to 16, including the denominators 691, 2 and 3617 that alone can tell a
 /// denominator claim from a height claim. The tests here assert on the trend matrix, which section
 /// 2 keeps as presentation, and widening <i>them</i> stays held under <c>halheinrich/Math#65</c>.
-/// What they add is the tie between the generated value and the pipeline's own answer, and the
-/// halting rule seen driving two providers to different depths.
+/// What they add is the tie between the generated value and the pipeline's own answer, and a
+/// check that the two providers are driven to different depths rather than one shared depth.
 /// </para>
 /// <para>
 /// <b>These are not the controls in <c>RealConstants.Tests/EvenZetaControlTests</c>, and neither
