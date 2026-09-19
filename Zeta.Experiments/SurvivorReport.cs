@@ -445,29 +445,46 @@ internal sealed class SurvivorReport
     /// The walk to call once per prefix. Required, so that which walk produced a report is always
     /// the caller's stated choice and never a default nobody named.
     /// </param>
+    /// <param name="limit">
+    /// How many survivors the walks may produce between them before the run is refused - counted
+    /// across every prefix, since that total is what the run spends. <see cref="SurvivorLimit.None"/>
+    /// for a walk whose cost is not its survivors. Required for the reason the walk is.
+    /// </param>
     /// <param name="afterEach">
     /// Called with each enclosure's index and the count still standing after it, so a caller can
-    /// report progress on a walk whose first step is much the most expensive. May be null.
+    /// report progress on a walk whose first step is much the most expensive. May be null. Not
+    /// called for a prefix whose walk passed the limit.
     /// </param>
-    /// <returns>The report.</returns>
+    /// <returns>
+    /// The report, or the refusal of a walk that passed <paramref name="limit"/> - in which case
+    /// the walk stopped at the first survivor past it and nothing it counted is reported.
+    /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> or <paramref name="walk"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="denominatorBound"/> is negative, or <paramref name="trackedCap"/> is below one.
     /// </exception>
     /// <remarks>
+    /// <para>
     /// <b>Each prefix is enumerated afresh rather than filtered from the last.</b> The obvious
     /// alternative - materialise the first enclosure's survivors and whittle them down - holds the
     /// largest set this report ever sees, which for a derived bound runs to millions.
     /// <see cref="SurvivorSearch"/> seeds each walk with the narrowest enclosure of the prefix it
     /// is given, so every step after the first is far cheaper than the first and the whole loop
     /// costs about twice what its opening step does.
+    /// </para>
+    /// <para>
+    /// <b>The limit is checked as each survivor arrives</b>, so a refused walk stops the moment it
+    /// passes and pays for nothing further. The check sits here rather than in the walk because the
+    /// walk is the library's and a count across several walks is not something any one of them sees.
+    /// </para>
     /// </remarks>
-    public static SurvivorReport Of(
+    public static SurvivorOutcome Of(
         IReadOnlyList<Approximation> enclosures,
         BigInteger denominatorBound,
         int trackedCap,
         SurvivorWalk walk,
+        SurvivorLimit limit,
         Action<int, long>? afterEach = null)
     {
         Validate(enclosures, trackedCap, walk);
@@ -476,6 +493,7 @@ internal sealed class SurvivorReport
         var nearest = new List<(BigRational Candidate, BigRational Distance)>();
         var standing = new List<BigRational>();
         BigRational centre = enclosures[^1].Value;
+        long walked = 0;
 
         for (int index = 0; index < enclosures.Count; index++)
         {
@@ -488,6 +506,13 @@ internal sealed class SurvivorReport
             foreach (BigRational survivor in walk(enclosures.Take(index + 1), denominatorBound))
             {
                 count++;
+                walked++;
+
+                if (limit.IsPassedBy(walked))
+                {
+                    return SurvivorOutcome.Refused(SurvivorCountRefusal.DuringTheWalk(
+                        walked, limit, denominatorBound, enclosures.Count, index, SurvivorMode.Chart));
+                }
 
                 if (widest)
                 {
@@ -504,14 +529,14 @@ internal sealed class SurvivorReport
             afterEach?.Invoke(index, count);
         }
 
-        return new SurvivorReport(
+        return SurvivorOutcome.Completed(new SurvivorReport(
             [.. enclosures],
             counts,
             counts[^1],
             [.. standing],
             Follow(standing, nearest, trackedCap),
             new SurvivorBound(denominatorBound, null),
-            []);
+            []));
     }
 
     /// <summary>Intersects every enclosure in one walk, producing the survivor set and nothing that needs a prefix.</summary>
@@ -522,7 +547,14 @@ internal sealed class SurvivorReport
     /// </param>
     /// <param name="trackedCap">How many survivors the distance chart may follow. At least one.</param>
     /// <param name="walk">The walk to call, once. Required, for the reason <see cref="Of"/> gives.</param>
-    /// <returns>The report, with <see cref="Omitted"/> naming the two panels a single walk cannot produce.</returns>
+    /// <param name="limit">
+    /// How many survivors the walk may produce before the run is refused; checked as each arrives,
+    /// as <see cref="Of"/> does.
+    /// </param>
+    /// <returns>
+    /// The report, with <see cref="Omitted"/> naming the two panels a single walk cannot produce -
+    /// or the refusal of a walk that passed <paramref name="limit"/>.
+    /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> or <paramref name="walk"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -551,11 +583,12 @@ internal sealed class SurvivorReport
     /// <see cref="SurvivorRun.Size"/> prices it that way.
     /// </para>
     /// </remarks>
-    public static SurvivorReport Deep(
+    public static SurvivorOutcome Deep(
         IReadOnlyList<Approximation> enclosures,
         SurvivorBound bound,
         int trackedCap,
-        SurvivorWalk walk)
+        SurvivorWalk walk,
+        SurvivorLimit limit)
     {
         Validate(enclosures, trackedCap, walk);
 
@@ -565,17 +598,24 @@ internal sealed class SurvivorReport
         foreach (BigRational survivor in walk(enclosures, bound.Q))
         {
             count++;
+
+            if (limit.IsPassedBy(count))
+            {
+                return SurvivorOutcome.Refused(SurvivorCountRefusal.DuringTheWalk(
+                    count, limit, bound.Q, 1, null, SurvivorMode.Deep));
+            }
+
             KeepIfSimplest(standing, survivor);
         }
 
-        return new SurvivorReport(
+        return SurvivorOutcome.Completed(new SurvivorReport(
             [.. enclosures],
             [],
             count,
             [.. standing],
             Follow(standing, [], trackedCap),
             bound,
-            [.. DeepOmits]);
+            [.. DeepOmits]));
     }
 
     /// <summary>The argument checks both walks share, made before either costs anything.</summary>

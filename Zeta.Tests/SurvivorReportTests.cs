@@ -92,7 +92,7 @@ public sealed class SurvivorReportTests
             [Ratio(1, 16), Ratio(1, 1024)]);
 
         SurvivorReport report = SurvivorReport.Of(
-            SurvivorReport.EnclosuresOf(run), 20, Cap, ReferenceWalk);
+            SurvivorReport.EnclosuresOf(run), 20, Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.Equal([BigRational.FromInteger(6)], report.Survivors);
         Assert.DoesNotContain(BigRational.FromInteger(3), report.Survivors);
@@ -145,7 +145,7 @@ public sealed class SurvivorReportTests
         //   [5.5, 6.5] holds 6/1, 11/2 and 13/2.
         //   [5.75, 6.25] holds 6/1 alone: 12/2 is not in lowest terms.
         SurvivorReport report = SurvivorReport.Of(
-            [At(BigRational.FromInteger(6), 1, 2), At(BigRational.FromInteger(6), 1, 4)], 2, Cap, ReferenceWalk);
+            [At(BigRational.FromInteger(6), 1, 2), At(BigRational.FromInteger(6), 1, 4)], 2, Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.Equal([3L, 1L], report.Counts);
         Assert.Equal([BigRational.FromInteger(6)], report.Survivors);
@@ -162,8 +162,8 @@ public sealed class SurvivorReportTests
         Approximation centred = At(BigRational.FromInteger(6), 1, 10);
         Approximation shifted = At(Ratio(61, 10), 1, 10);
 
-        SurvivorReport pair = SurvivorReport.Of([centred, shifted], 10, Cap, ReferenceWalk);
-        SurvivorReport latest = SurvivorReport.Of([shifted], 10, Cap, ReferenceWalk);
+        SurvivorReport pair = SurvivorReport.Of([centred, shifted], 10, Cap, ReferenceWalk, SurvivorLimit.None).Report;
+        SurvivorReport latest = SurvivorReport.Of([shifted], 10, Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.Equal([BigRational.FromInteger(6), Ratio(61, 10)], pair.Survivors);
         Assert.Contains(Ratio(31, 5), latest.Survivors);
@@ -180,7 +180,7 @@ public sealed class SurvivorReportTests
                 At(BigRational.FromInteger(6), 1, 100),
             ],
             20,
-            Cap, ReferenceWalk);
+            Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         for (int index = 1; index < report.Counts.Count; index++)
         {
@@ -195,7 +195,7 @@ public sealed class SurvivorReportTests
     {
         // No rational of denominator 1 lies in [6.2, 6.4], so nothing survives. An empty result is
         // the strongest outcome this bench produces and must be reachable.
-        SurvivorReport report = SurvivorReport.Of([At(Ratio(63, 10), 1, 10)], 1, Cap, ReferenceWalk);
+        SurvivorReport report = SurvivorReport.Of([At(Ratio(63, 10), 1, 10)], 1, Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.Equal(0, report.SurvivorCount);
         Assert.Empty(report.Survivors);
@@ -210,7 +210,7 @@ public sealed class SurvivorReportTests
         // rule keyed on the stage would leave one line on the chart and nothing to compare it
         // with; keying on distance from the final ratio keeps the near misses that died last.
         SurvivorReport report = SurvivorReport.Of(
-            [At(BigRational.FromInteger(6), 1, 2), At(BigRational.FromInteger(6), 1, 4)], 2, Cap, ReferenceWalk);
+            [At(BigRational.FromInteger(6), 1, 2), At(BigRational.FromInteger(6), 1, 4)], 2, Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.Equal(BigRational.FromInteger(6), report.Tracked[0]);
         Assert.Contains(Ratio(11, 2), report.Tracked);
@@ -221,7 +221,7 @@ public sealed class SurvivorReportTests
     public void Of_FollowsNoMoreCandidatesThanTheCap()
     {
         SurvivorReport report = SurvivorReport.Of(
-            [At(BigRational.FromInteger(6), 1, 2)], 40, 3, ReferenceWalk);
+            [At(BigRational.FromInteger(6), 1, 2)], 40, 3, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.True(report.Counts[0] > 3, "The fixture must offer more candidates than the cap.");
         Assert.Equal(3, report.Tracked.Count);
@@ -234,7 +234,7 @@ public sealed class SurvivorReportTests
         // simplest denominators first would agree here by accident, so the cap is set to admit
         // exactly the nearest two and the third is checked to be absent.
         SurvivorReport report = SurvivorReport.Of(
-            [At(BigRational.FromInteger(6), 51, 100), At(BigRational.FromInteger(6), 1, 4)], 2, 2, ReferenceWalk);
+            [At(BigRational.FromInteger(6), 51, 100), At(BigRational.FromInteger(6), 1, 4)], 2, 2, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.Equal([BigRational.FromInteger(6), Ratio(11, 2)], report.Tracked);
     }
@@ -265,8 +265,8 @@ public sealed class SurvivorReportTests
 
         foreach ((string name, SurvivorWalk walk) in BothWalks)
         {
-            SurvivorReport chart = SurvivorReport.Of(enclosures, Bound, Cap, walk);
-            SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(Bound), Cap, walk);
+            SurvivorReport chart = SurvivorReport.Of(enclosures, Bound, Cap, walk, SurvivorLimit.None).Report;
+            SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(Bound), Cap, walk, SurvivorLimit.None).Report;
 
             Assert.True(simplest.SequenceEqual(chart.Survivors), Inv($"{name}: the chart listed other survivors."));
             Assert.True(simplest.SequenceEqual(deep.Survivors), Inv($"{name}: deep listed other survivors."));
@@ -289,7 +289,7 @@ public sealed class SurvivorReportTests
 
         foreach ((string name, SurvivorWalk walk) in BothWalks)
         {
-            SurvivorReport report = SurvivorReport.Of(enclosures, 3, 3, walk);
+            SurvivorReport report = SurvivorReport.Of(enclosures, 3, 3, walk, SurvivorLimit.None).Report;
 
             Assert.Empty(report.Survivors);
             Assert.True(expected.SequenceEqual(report.Tracked), Inv($"{name}: followed {string.Join(", ", report.Tracked)}."));
@@ -303,14 +303,14 @@ public sealed class SurvivorReportTests
     {
         // Nothing refutes, so every rational within the bound survives and there are infinitely
         // many of them. An empty result would report complete refutation from no evidence.
-        Assert.Throws<ArgumentException>(() => SurvivorReport.Of([], 10, Cap, ReferenceWalk));
+        Assert.Throws<ArgumentException>(() => SurvivorReport.Of([], 10, Cap, ReferenceWalk, SurvivorLimit.None).Report);
     }
 
     [Fact]
     public void Of_RefusesACapBelowOne()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => SurvivorReport.Of([At(BigRational.FromInteger(6), 1, 2)], 10, 0, ReferenceWalk));
+            () => SurvivorReport.Of([At(BigRational.FromInteger(6), 1, 2)], 10, 0, ReferenceWalk, SurvivorLimit.None).Report);
     }
 
     [Fact]
@@ -320,7 +320,7 @@ public sealed class SurvivorReportTests
         // walk produced a report is always a choice somebody stated - a null is a missing choice,
         // and quietly picking one would be the hidden default the argument exists to remove.
         ArgumentNullException refused = Assert.Throws<ArgumentNullException>(
-            () => SurvivorReport.Of([At(BigRational.FromInteger(6), 1, 2)], 10, Cap, null!));
+            () => SurvivorReport.Of([At(BigRational.FromInteger(6), 1, 2)], 10, Cap, null!, SurvivorLimit.None).Report);
 
         Assert.Equal("walk", refused.ParamName);
     }
@@ -399,7 +399,7 @@ public sealed class SurvivorReportTests
         // against the widest enclosure would overstate the null by the factor the run narrowed by,
         // and would make every survivor look unremarkable.
         SurvivorReport report = SurvivorReport.Of(
-            [At(BigRational.FromInteger(6), 1, 2), At(BigRational.FromInteger(6), 1, 4)], 2, Cap, ReferenceWalk);
+            [At(BigRational.FromInteger(6), 1, 2), At(BigRational.FromInteger(6), 1, 4)], 2, Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.Equal(SurvivorReport.ExpectedSurvivors(new BigRational(1, 4), 7).Value, report.ExpectedAt(7).Value);
         Assert.NotEqual(SurvivorReport.ExpectedSurvivors(new BigRational(1, 2), 7).Value, report.ExpectedAt(7).Value);
@@ -409,7 +409,7 @@ public sealed class SurvivorReportTests
     public void ExpectedUnderBound_PricesTheWholeBound()
     {
         SurvivorReport report = SurvivorReport.Of(
-            [At(BigRational.FromInteger(6), 1, 4)], 2, Cap, ReferenceWalk);
+            [At(BigRational.FromInteger(6), 1, 4)], 2, Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.Equal(report.ExpectedAt(report.DenominatorBound).Value, report.ExpectedUnderBound.Value);
     }
@@ -1153,8 +1153,8 @@ public sealed class SurvivorReportTests
         {
             (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[index];
 
-            SurvivorReport chart = SurvivorReport.Of(enclosures, bound, Cap, ReferenceWalk);
-            SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, ReferenceWalk);
+            SurvivorReport chart = SurvivorReport.Of(enclosures, bound, Cap, ReferenceWalk, SurvivorLimit.None).Report;
+            SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
             Assert.Equal(chart.Survivors, deep.Survivors);
             Assert.Equal(chart.Counts[^1], deep.SurvivorCount);
@@ -1163,7 +1163,7 @@ public sealed class SurvivorReportTests
         }
 
         Assert.True(
-            SurvivorReport.Of(Fixtures[^1].Enclosures, Fixtures[^1].Bound, Cap, ReferenceWalk).SurvivorCount > SurvivorReport.SurvivorsShown,
+            SurvivorReport.Of(Fixtures[^1].Enclosures, Fixtures[^1].Bound, Cap, ReferenceWalk, SurvivorLimit.None).Report.SurvivorCount > SurvivorReport.SurvivorsShown,
             "One fixture must hold more survivors than are listed, so the count is compared beyond the list.");
     }
 
@@ -1179,8 +1179,8 @@ public sealed class SurvivorReportTests
         IReadOnlyList<Approximation> enclosures = SurvivorReport.Distinct(SurvivorReport.EnclosuresOf(run));
         BigInteger bound = SurvivorReport.DerivedBound(enclosures[^1]);
 
-        SurvivorReport chart = SurvivorReport.Of(enclosures, bound, Cap, ReferenceWalk);
-        SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, ReferenceWalk);
+        SurvivorReport chart = SurvivorReport.Of(enclosures, bound, Cap, ReferenceWalk, SurvivorLimit.None).Report;
+        SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.True(enclosures.Count > 1, "The run must realise more than one enclosure to have prefixes at all.");
         Assert.Equal(chart.Survivors, deep.Survivors);
@@ -1195,7 +1195,7 @@ public sealed class SurvivorReportTests
         (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[2];
         var counting = new CountingWalk();
 
-        SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, counting.Walk);
+        SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, counting.Walk, SurvivorLimit.None);
 
         Assert.Single(counting.Calls);
         Assert.Equal(enclosures, counting.Calls[0]);
@@ -1209,7 +1209,7 @@ public sealed class SurvivorReportTests
         (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[2];
         var counting = new CountingWalk();
 
-        SurvivorReport.Of(enclosures, bound, Cap, counting.Walk);
+        SurvivorReport.Of(enclosures, bound, Cap, counting.Walk, SurvivorLimit.None);
 
         Assert.Equal(enclosures.Count, counting.Calls.Count);
 
@@ -1226,7 +1226,7 @@ public sealed class SurvivorReportTests
         // walk deep deletes. Asserted on the value the chart and the epilogue both render from.
         (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[0];
 
-        SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, ReferenceWalk);
+        SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.Equal([SurvivorPanel.Collapse, SurvivorPanel.NearestExcluded], deep.Omitted);
         Assert.Empty(deep.Counts);
@@ -1237,7 +1237,7 @@ public sealed class SurvivorReportTests
     {
         (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[0];
 
-        Assert.Empty(SurvivorReport.Of(enclosures, bound, Cap, ReferenceWalk).Omitted);
+        Assert.Empty(SurvivorReport.Of(enclosures, bound, Cap, ReferenceWalk, SurvivorLimit.None).Report.Omitted);
     }
 
     [Fact]
@@ -1248,8 +1248,8 @@ public sealed class SurvivorReportTests
         // the survivor - and must not invent a family it did not measure.
         (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[0];
 
-        SurvivorReport chart = SurvivorReport.Of(enclosures, bound, Cap, ReferenceWalk);
-        SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, ReferenceWalk);
+        SurvivorReport chart = SurvivorReport.Of(enclosures, bound, Cap, ReferenceWalk, SurvivorLimit.None).Report;
+        SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.Contains(Ratio(11, 2), chart.Tracked);
         Assert.Equal([BigRational.FromInteger(6)], deep.Tracked);
@@ -1258,13 +1258,13 @@ public sealed class SurvivorReportTests
     [Fact]
     public void Deep_RefusesWhatOfRefuses()
     {
-        Assert.Throws<ArgumentException>(() => SurvivorReport.Deep([], Uncapped(10), Cap, ReferenceWalk));
+        Assert.Throws<ArgumentException>(() => SurvivorReport.Deep([], Uncapped(10), Cap, ReferenceWalk, SurvivorLimit.None).Report);
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => SurvivorReport.Deep([At(BigRational.FromInteger(6), 1, 2)], Uncapped(10), 0, ReferenceWalk));
+            () => SurvivorReport.Deep([At(BigRational.FromInteger(6), 1, 2)], Uncapped(10), 0, ReferenceWalk, SurvivorLimit.None).Report);
         Assert.Equal(
             "walk",
             Assert.Throws<ArgumentNullException>(
-                () => SurvivorReport.Deep([At(BigRational.FromInteger(6), 1, 2)], Uncapped(10), Cap, null!)).ParamName);
+                () => SurvivorReport.Deep([At(BigRational.FromInteger(6), 1, 2)], Uncapped(10), Cap, null!, SurvivorLimit.None).Report).ParamName);
     }
 
     /// <summary>A bound nothing capped, which is every deep report until ruling 5's tests below.</summary>
@@ -1441,7 +1441,7 @@ public sealed class SurvivorReportTests
         (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[2];
         var counting = new CountingWalk();
 
-        SurvivorReport report = SurvivorReport.Deep(enclosures, new SurvivorBound(bound, 100), Cap, counting.Walk);
+        SurvivorReport report = SurvivorReport.Deep(enclosures, new SurvivorBound(bound, 100), Cap, counting.Walk, SurvivorLimit.None).Report;
 
         Assert.Equal([new BigInteger(100)], counting.Bounds);
         Assert.Equal(100, report.DenominatorBound);
@@ -1457,8 +1457,8 @@ public sealed class SurvivorReportTests
         Approximation enclosure = At(BigRational.FromInteger(6), 1, 10_000);
         BigInteger derived = SurvivorReport.DerivedBound(enclosure);
 
-        SurvivorReport uncapped = SurvivorReport.Deep([enclosure], new SurvivorBound(derived, null), Cap, ReferenceWalk);
-        SurvivorReport capped = SurvivorReport.Deep([enclosure], new SurvivorBound(derived, derived / 2), Cap, ReferenceWalk);
+        SurvivorReport uncapped = SurvivorReport.Deep([enclosure], new SurvivorBound(derived, null), Cap, ReferenceWalk, SurvivorLimit.None).Report;
+        SurvivorReport capped = SurvivorReport.Deep([enclosure], new SurvivorBound(derived, derived / 2), Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         Assert.Equal(SurvivorReport.ExpectedSurvivors(BigRational.One, 1).Value, uncapped.ExpectedUnderBound.Value);
         Assert.Equal(uncapped.ExpectedUnderBound.Value / 4, capped.ExpectedUnderBound.Value);
@@ -1561,7 +1561,7 @@ public sealed class SurvivorReportTests
         // false, and a picture repeating it would misstate the one figure a survivor is read
         // against.
         Approximation enclosure = At(BigRational.FromInteger(6), 1, 10_000);
-        SurvivorReport report = SurvivorReport.Deep([enclosure], new SurvivorBound(100, 50), Cap, ReferenceWalk);
+        SurvivorReport report = SurvivorReport.Deep([enclosure], new SurvivorBound(100, 50), Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(
@@ -1672,7 +1672,7 @@ public sealed class SurvivorReportTests
         // is a heading for every panel Omitted names. One line for the half-width and one per
         // survivor followed is all a deep picture has.
         (IReadOnlyList<Approximation> enclosures, int bound) = Fixtures[0];
-        SurvivorReport report = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, ReferenceWalk);
+        SurvivorReport report = SurvivorReport.Deep(enclosures, Uncapped(bound), Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(
@@ -1695,7 +1695,7 @@ public sealed class SurvivorReportTests
     public void Chart_WritesWellFormedXmlForARealReport()
     {
         SurvivorReport report = SurvivorReport.Of(
-            [At(BigRational.FromInteger(6), 1, 2), At(BigRational.FromInteger(6), 1, 4)], 2, Cap, ReferenceWalk);
+            [At(BigRational.FromInteger(6), 1, 2), At(BigRational.FromInteger(6), 1, 4)], 2, Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(
@@ -1721,7 +1721,7 @@ public sealed class SurvivorReportTests
     [Fact]
     public void Chart_DrawsAnEmptySurvivorSetRatherThanFailingOnIt()
     {
-        SurvivorReport report = SurvivorReport.Of([At(Ratio(63, 10), 1, 10)], 1, Cap, ReferenceWalk);
+        SurvivorReport report = SurvivorReport.Of([At(Ratio(63, 10), 1, 10)], 1, Cap, ReferenceWalk, SurvivorLimit.None).Report;
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(

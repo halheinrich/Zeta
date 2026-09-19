@@ -362,15 +362,16 @@ internal static class SurvivorRun
 
         var walk = Stopwatch.StartNew();
         SurvivorReport report = mode == SurvivorMode.Deep
-            ? SurvivorReport.Deep(enclosures, bound, TrackedCap, ReferenceWalk)
+            ? SurvivorReport.Deep(enclosures, bound, TrackedCap, ReferenceWalk, SurvivorLimit.None).Report
             : SurvivorReport.Of(
                 enclosures,
                 derived,
                 TrackedCap,
                 ReferenceWalk,
+                SurvivorLimit.None,
                 (index, count) => notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
                     $"  enclosure {index}  half-width {Presentation.Magnitude(enclosures[index].MaxError),-9}  " +
-                    $"still standing {count:N0}")));
+                    $"still standing {count:N0}"))).Report;
 
         walk.Stop();
         clock.Stop();
@@ -1281,8 +1282,8 @@ internal static class SurvivorRun
         {
             var clock = Stopwatch.StartNew();
             _ = mode == SurvivorMode.Deep
-                ? SurvivorReport.Deep(enclosures, new SurvivorBound(bound, null), TrackedCap, ReferenceWalk)
-                : SurvivorReport.Of(enclosures, bound, TrackedCap, ReferenceWalk);
+                ? SurvivorReport.Deep(enclosures, new SurvivorBound(bound, null), TrackedCap, ReferenceWalk, SurvivorLimit.None)
+                : SurvivorReport.Of(enclosures, bound, TrackedCap, ReferenceWalk, SurvivorLimit.None);
             clock.Stop();
 
             fastest = Math.Min(fastest, clock.ElapsedTicks);
