@@ -47,10 +47,39 @@ internal static class SurvivorCountGuard
     /// refused. Held fixed in that sweep: this bench's two providers and the run's own schedules.
     /// </para>
     /// <para>
-    /// The walk ran at about 0.4 microseconds a survivor in that probe, under load, which makes
-    /// the limit something like a minute of walking before the report's own per-survivor work.
-    /// That is an indication and not a measurement, and it is not what the limit means: the limit
-    /// is a count. A caller who wants a different policy sets another.
+    /// <b>What the limit costs in time is set by the report, not by the walk, and it rises with
+    /// the order.</b> Measured 2026-09-19 by a scratch probe that timed, on the same enclosures
+    /// and back to back, <see cref="FareyWalk"/> enumerating every prefix alone and then
+    /// <see cref="SurvivorReport.Of"/> over the same walk - two passes each, at below-normal
+    /// priority on a machine under other load, so these are extremes and not a fit:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>
+    /// order 3, <c>1e-2 .. 1e-9</c>, <c>Q = 32,768</c>, 3,212,843 survivors: the walk 0.26 to
+    /// 0.40 microseconds a survivor, the report 2.42 to 2.46;
+    /// </description></item>
+    /// <item><description>
+    /// order 10, the same schedule and <c>Q</c>, 346,273 survivors: the walk 0.32 to 1.93, the
+    /// report 21.7 to 32.9;
+    /// </description></item>
+    /// <item><description>
+    /// order 16, <c>1e-2 .. 1e-8</c>, <c>Q = 16,384</c>, 483,866 survivors: the walk 0.59 to
+    /// 1.46, the report 38.2 to 38.3.
+    /// </description></item>
+    /// </list>
+    /// <para>
+    /// So the report took 6 to 68 times the walk's time on every pass, and its cost a survivor
+    /// moved with the order where the walk's did not. Two things the probe did not separate:
+    /// which part of the report's work costs it, and the order from the size of the enclosures,
+    /// which grows with it - the final centre ran to 148, 738 and 1,402 numerator digits at the
+    /// three orders. A full run agrees with the order-10 figure: <c>survivors 10 4 11</c> walked
+    /// 40,782,076 survivors in 1,407 s under the same conditions, about 34.5 microseconds each.
+    /// At the measured rates a chart that reached this limit would take a few minutes at order 3
+    /// and about an hour at order 10 - arithmetic on figures taken under load, not a prediction.
+    /// </para>
+    /// <para>
+    /// None of that is what the limit means: the limit is a count, and a caller who wants a
+    /// different policy sets another.
     /// </para>
     /// </remarks>
     public const long DefaultLimit = 100_000_000;
