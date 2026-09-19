@@ -170,36 +170,58 @@ the same split every command here uses.
 After the order it takes **both ends of the schedule or neither**:
 `survivors 3 2 12` runs `1e-2 .. 1e-12`, and the default is `1e-2 .. 1e-8`.
 One exponent alone is refused rather than guessed at, since it could name
-either end and the two readings differ by a decade of cost apiece. How deep is
-worth going is a real question and not a free one: every point of the collapse
-chart walks the denominators `1..Q` afresh, counting the rationals its own
-prefix admits — about `h·Q² + Q` apiece — and the widest prefix usually
-dominates the sum, so a decade off the last end costs ten times as much while a
-decade off the first end saves about four. Before it starts, the command times a
-short sample against the enclosures it has just realised and predicts what the
-walk will cost; ask for more than five minutes of it and it prints the price
-instead of paying it. The budget is in **seconds rather than candidates**,
-because a candidate costs five times more at order 10 than at order 3. It is not
-a timed abort — the search then runs to completion, so a slower machine refuses
-more runs and reports the same answer on the ones it admits.
+either end and the two readings differ by a decade of cost apiece.
+
+Last comes **the walk that finds the survivors**: `farey`, the default, or
+`denominator`, as in `survivors 3 2 12 denominator`. The two return the same
+survivor set and draw the same report; they differ in what they cost, and so in
+what guards them. The output names the walk and its guard.
+
+**`FareyWalk` costs about `log Q` plus one step for each survivor it finds**,
+so its guard is a count of survivors. Before it starts, the command sums the
+survivors it expects, `6·h·Q²/π²` for each prefix it will walk, and refuses a
+run expected past the limit. During the walk it stops the moment the count
+itself passes, because an expectation is not a bound. The limit is 100,000,000
+by default, and yours to set after the walk's word, as a whole number:
+`survivors 3 2 12 farey 500000000`. The widest prefix holds most of the
+survivors, so a decade off the first end is what buys a refused chart back.
+
+**`DenominatorWalk` is the reference**, linear in `Q` and deliberately never
+optimised. How deep is worth going with it is a real question and not a free
+one: every point of the collapse chart walks the denominators `1..Q` afresh,
+counting the rationals its own prefix admits — about `h·Q² + Q` apiece — and the
+widest prefix usually dominates the sum, so a decade off the last end costs ten
+times as much while a decade off the first end saves about four. Before it
+starts, the command times a short sample against the enclosures it has just
+realised and predicts what the walk will cost; ask for more than five minutes of
+it and it prints the price instead of paying it. The budget is in **seconds
+rather than candidates**, because a candidate costs five times more at order 10
+than at order 3. It is not a timed abort — the search then runs to completion,
+so a slower machine refuses more runs and reports the same answer on the ones it
+admits.
 
 `deep` returns **the same survivor set as `survivors`, without the charts,
-traded for reach.** It takes the same arguments. Where `survivors` walks the
-denominators once per prefix of the enclosures to draw the collapse, `deep`
-walks once with all of them, and that one walk is the collapse's last prefix, so
+traded for reach.** It takes the same arguments. Where `survivors` walks once
+per prefix of the enclosures to draw the collapse, `deep` walks once with all
+of them, and that one walk is the collapse's last prefix, so
 the answer is identical. What it gives up is every picture that needs a shorter
 prefix: the collapse chart and the nearest excluded candidates. Both the SVG and
 the terminal say which panels are missing, so the picture is never thinner in
-silence. Its walk is about `Q` denominators and almost nothing else, so the first
-exponent does not move its cost at all, and it is priced by timing a sample of
-that walk itself.
+silence.
 
-`deep` is never refused for its cost. When the derived `Q` would take more than
-the five-minute budget, it walks to the largest `Q` the budget affords instead,
-and prints both numbers, on the terminal and on the chart. Claiming less than
-the precision supports is always sound. It does change the reading, and the
-output says how: under a cap the null falls below 6/π², so a survivor is stronger
-evidence and an empty set refutes less than the precision would have supported.
+Under `FareyWalk`, `deep`'s one walk is about `log Q` steps and, at the derived
+`Q`, about 0.61 expected survivors whatever the precision, so it walks to the
+derived `Q` and nothing caps it. Only the count during the walk can stop it.
+
+Under `DenominatorWalk`, its walk is about `Q` denominators and almost nothing
+else, so the first exponent does not move its cost at all, and it is priced by
+timing a sample of that walk itself. It is never refused for that cost. When
+the derived `Q` would take more than the five-minute budget, it walks to the
+largest `Q` the budget affords instead, and prints both numbers, on the
+terminal and on the chart. Claiming less than the precision supports is always
+sound. It does change the reading, and the output says how: under a cap the
+null falls below 6/π², so a survivor is stronger evidence and an empty set
+refutes less than the precision would have supported.
 
 ## Building
 

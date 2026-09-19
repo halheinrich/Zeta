@@ -171,7 +171,7 @@ public sealed class SurvivorReportTests
     public void Of_IntersectsAcrossEveryEnclosureRatherThanFilteringOnTheLast(string walk)
     {
         // The enclosures do not nest: 5.9 is in the first and not the second, 6.2 in the second
-        // and not the first. SurvivorSearch's own remarks use this pair, and it is the reason the
+        // and not the first. DenominatorWalk's own remarks use this pair, and it is the reason the
         // result is an intersection - a filter on the latest enclosure would keep 31/5, which the
         // first enclosure has already refuted permanently.
         Approximation centred = At(BigRational.FromInteger(6), 1, 10);
@@ -584,7 +584,7 @@ public sealed class SurvivorReportTests
     [Fact]
     public void Estimate_PricesEachPrefixAtItsNarrowestEnclosureAndNotItsLast()
     {
-        // SurvivorSearch seeds its walk from the narrowest enclosure of the prefix it is given, so
+        // DenominatorWalk, whose cost this is, seeds from the narrowest enclosure of a prefix, so
         // that is what a prefix costs. In a run the enclosures only tighten and the narrowest is
         // the last; a list that widens again - which Distinct permits, since it collapses only
         // adjacent repeats - must not be priced as though the walk had got wider with it.
@@ -1165,8 +1165,8 @@ public sealed class SurvivorReportTests
     [MemberData(nameof(WalkTheory.Names), MemberType = typeof(WalkTheory))]
     public void Deep_ReturnsTheChartsFinalRowElementForElement(string walk)
     {
-        // Ruling 4's whole claim, and the test that matters: nothing is weakened. SurvivorSearch
-        // intersects every enclosure it is handed and seeds from the narrowest, so one walk over
+        // Ruling 4's whole claim, and the test that matters: nothing is weakened. Every walk
+        // returns what all the enclosures it is handed contain, so one walk over
         // all of them IS the chart's last prefix - and the fixtures include the non-nesting pair,
         // which a deep walk filtering on the latest enclosure would get wrong.
         for (int index = 0; index < Fixtures.Length; index++)
@@ -1336,7 +1336,7 @@ public sealed class SurvivorReportTests
     [Fact]
     public void Size_PricesADeepWalkAtItsNarrowestEnclosureWhereverItSits()
     {
-        // SurvivorSearch seeds from the narrowest, not the last. A list that widens again after
+        // DenominatorWalk seeds from the narrowest, not the last. A list that widens again after
         // its narrowest must be priced at the narrowest, or the deep estimate would charge for a
         // walk wider than the one that runs.
         Approximation wide = At(BigRational.FromInteger(6), 1, 100);

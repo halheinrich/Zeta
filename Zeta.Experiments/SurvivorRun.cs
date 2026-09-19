@@ -1316,7 +1316,7 @@ internal static class SurvivorRun
     /// </para>
     /// <para>
     /// Each prefix is sized at its <i>narrowest</i> enclosure, which is the one
-    /// <see cref="SurvivorSearch"/> seeds its walk from. In a run the enclosures only tighten, so
+    /// <see cref="DenominatorWalk"/> seeds its walk from. In a run the enclosures only tighten, so
     /// that is the prefix's last element; the running minimum below is what makes the same
     /// arithmetic right for a list handed over by a test in any order.
     /// </para>

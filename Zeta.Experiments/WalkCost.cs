@@ -7,7 +7,7 @@ namespace HalHeinrich.Numerics.Experiments;
 /// stepped through, and the candidates their intervals hold.
 /// </summary>
 /// <param name="Denominators">
-/// How many times the outer loop turns. <c>SurvivorSearch</c> walks <c>1..Q</c> for every prefix
+/// How many times the outer loop turns. <c>DenominatorWalk</c> walks <c>1..Q</c> for every prefix
 /// whatever its interval holds, so this is the prefix count times <c>Q</c> and is a floor on the
 /// cost rather than a rounding term.
 /// </param>

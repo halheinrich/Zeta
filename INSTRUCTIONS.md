@@ -36,7 +36,9 @@ than being added when results appear.
 - **RationalApproximation** — every contract wired here. `Approximation` and
   its arithmetic, `IRealConstant`, `IRationalApproximator` with the reference
   `DenominatorSweep`, `RationalCandidate`, and `TrendIteration` /
-  `TrendRow` / `TrendMatrix`. Also `SurvivorSearch`: the survivor set, and the
+  `TrendRow` / `TrendMatrix`. Also `SurvivorSearch`, the survivor set's
+  contract, with its two walks: `DenominatorWalk`, the reference, linear in
+  `Q`, and `FareyWalk`, about `log Q` plus the survivors. The base holds the
   only implementation of the reachability and isolation rules, which this
   repository asks and never restates.
 
@@ -66,7 +68,8 @@ than being added when results appear.
   commands: `walk`, the ζ(2) exhibit; `target`, the π³/ζ(3) run; `survivors`,
   which reports § 2 step 6's survivor set and draws it as an SVG on stdout; and
   `deep`, the same survivor set walked once rather than per prefix, traded for
-  reach. Everything in it is `internal`, which is what `.editorconfig`
+  reach. Both of the last two take the walk as a word, `FareyWalk` by default.
+  Everything in it is `internal`, which is what `.editorconfig`
   expects — CA1515 is suppressed only under `[**/*Tests.cs]`, so a public type
   here fails the build.
 
@@ -133,6 +136,12 @@ an identity rather than a measurement, since `DerivedBound` takes
 `Q = floor(ε^(-1/2))` and the `ε` cancels the `Q²`. Making the estimate linear
 in `q` instead of quadratic turns all three red.
 
+**From here to § `deep`, the cost model is `DenominatorWalk`'s.** It was the
+only walk when all of it was written, and `halheinrich/Math#79` leg 2 kept it
+unchanged for that walk. `FareyWalk`, the default since, costs about `log Q`
+plus a step a survivor and is guarded by a survivor count instead; § The walk
+is chosen, and brings its own guard, says how.
+
 **The cost law is not `target`'s.** Every point of the collapse chart walks the
 denominators `1..Q` afresh, counting the rationals its own prefix admits, so a
 prefix of half-width `h` costs about `h·Q² + Q` and the run costs the sum over
@@ -143,7 +152,7 @@ somebody had measured what the constant cost, and `SurvivorRun.Refuse` checks
 the estimate against a measured budget before spending it.
 
 **That `+ Q` is a floor and not a rounding term, and omitting it was the guard's
-defect** (ruled on `halheinrich/Math#64` 2026-09-09). `SurvivorSearch` walks
+defect** (ruled on `halheinrich/Math#64` 2026-09-09). `DenominatorWalk` walks
 every denominator up to `Q` whatever its interval holds, so a prefix too narrow
 to admit anything still costs `Q` — and `SurvivorRun.Estimate` priced
 `enclosures[0]` alone while its call site held the whole list. At `1e-6 .. 1e-12`
@@ -224,9 +233,10 @@ invert the rule as the digit count of `d²`.
 **§ 4's positive controls are survivor sets, and gate CI up to n = 16 for cost
 alone.** `Zeta.Tests/SurvivorSetControlTests` asserts that under one bound
 fixed in advance the survivor set is exactly the answer, at every even order
-from 2 to 16, sized by looping on `SurvivorSearch.IsIsolated` rather than by
-refining to a bound. Its remarks carry the bound chosen and the measurement
-that leaves 18 an experiment — a cost cut, not `MaxOrder` returning.
+from 2 to 16 and under each walk, sized by looping on
+`SurvivorSearch.IsIsolated` rather than by refining to a bound. Its remarks
+carry the bound chosen and the measurement that leaves 18 an experiment — a
+cost cut, not `MaxOrder` returning.
 
 Measured 2026-09-09: `survivors 18` refuses in 0.4 s, and `survivors 18 5 11`
 returns `38979295480125/43867` **alone** at `Q = 370,727` in 269 s. § 1's value,
@@ -329,12 +339,13 @@ enclosure already produces.
 
 Ruling 4 on `halheinrich/Math#64`. `SurvivorReport.Of` walks once per prefix
 to build the collapse; `SurvivorReport.Deep` walks once with every enclosure.
-**The survivor set is identical**, because `SurvivorSearch` intersects every
-enclosure it is given and seeds from the narrowest, so one walk over all of them
-*is* the chart's last prefix. `Deep_ReturnsTheChartsFinalRowElementForElement`
-holds that on the non-nesting pair, and `Deep_WalksOnceWithEveryEnclosure`
-counts the calls through the report's optional walk, the seam
-`RatioRun.Execute`'s optional searcher already set.
+**The survivor set is identical**, because every `SurvivorSearch` walk returns
+the rationals that all the enclosures it is given contain, so one walk over all
+of them *is* the chart's last prefix.
+`Deep_ReturnsTheChartsFinalRowElementForElement` holds that on the non-nesting
+pair under each walk, and
+`Deep_WalksOnceWithEveryEnclosure` counts the calls through the walk the report
+is handed, the seam `RatioRun.Execute`'s optional searcher already set.
 
 **Both panels are lost, not one.** The nearest-excluded family is built from the
 widest prefix's walk alone, which is the exact pass `deep` deletes, so the
@@ -350,7 +361,8 @@ silently.
 positional arguments, no flags) and `deep` shares `survivors`' grammar exactly.
 The chart stays the default: the collapse is what makes a refutation legible.
 
-**It is priced as the final prefix, and sampled from itself.** `Size` in deep
+**Under `DenominatorWalk` it is priced as the final prefix, and sampled from
+itself.** `Size` in deep
 mode is `Q` denominators and `h_min·Q²` candidates, about one at a derived `Q`,
 so the walk is nearly all outer loop. That is the price that grows as the seed
 tightens, and it is why `CalibrateDeep` times the deep walk itself rather than
@@ -368,17 +380,18 @@ times the realised walk. `DeepSampleWarmUpSeconds` is one second, and it errs
 long on purpose: a sample read too early over-prices, which admits less rather
 than more.
 
-**A deep run is never refused for its cost; its `Q` comes down instead.**
-Ruling 5: `Q` is the smaller of the derived bound and the largest the budget
-affords, and `SurvivorBound` carries both. `SPEC-rational-ratio.md` § 2 states
-`eps < H^-2` as a sufficient condition on the error, not as a formula for `Q`,
-so claiming less than the precision supports is always sound, and the caller
-still never picks `Q`. `SurvivorRun.Afford` doubles and then bisects through
-`Size`, the expression the printed prediction uses, so the cap and the prediction
-are one computation. Both numbers are printed, on stderr and in the SVG caption,
-because the cap changes the reading: the null falls below 6/π², so a survivor is
-*stronger* evidence and an empty set is a *narrower* refutation.
-`Refuse` is the chart's guard alone.
+**A deep `DenominatorWalk` run is never refused for its cost; its `Q` comes down
+instead.** Ruling 5: `Q` is the smaller of the derived bound and the largest
+the budget affords, and `SurvivorBound` carries both.
+`SPEC-rational-ratio.md` § 2 states `eps < H^-2` as a sufficient condition on
+the error, not as a formula for `Q`, so claiming less than the precision
+supports is always sound, and the caller still never picks `Q`.
+`SurvivorRun.Afford` doubles and then bisects through `Size`, the expression
+the printed prediction uses, so the cap and the prediction are one computation.
+Both numbers are printed, on stderr and in the SVG caption, because the cap
+changes the reading: the null falls below 6/π², so a survivor is *stronger*
+evidence and an empty set is a *narrower* refutation. `Refuse` is the chart's
+guard alone.
 
 **A cap opens a hole the unreachable-control check does not cover.** That check
 reads the derived bound, and a cap can fall below an even order's denominator
@@ -388,7 +401,73 @@ differs because the budget is what's short: no schedule change helps a deep
 walk, whose cost the first exponent does not move. That advice is true only
 when the derived bound reaches, so the method checks it rather than relying on
 `Run` having asked first, and where the schedule is short too it returns the
-unreachable refusal instead.
+unreachable refusal instead. It also offers `FareyWalk`, which no budget caps.
+
+### The walk is chosen, and brings its own guard
+
+Leg 2 of `halheinrich/Math#79`, ruled 2026-09-18. `survivors` and `deep` take
+the survivor walk as a word after the schedule: `FareyWalk` by default,
+`DenominatorWalk` by naming it, as in `survivors 3 2 12 denominator`. The
+preamble, the SVG and the epilogue name the walk that ran and its guard, and a
+refusal's invocation to copy repeats the walk and limit whenever they are not
+the defaults (`SurvivorRequest.Invocation`, the one renderer).
+
+**Choosing a walk chooses a guard, and `SurvivorWalkChoice` pairs the two
+once.** It is an abstract base closed to this assembly, with one sealed
+subclass per walk and `All` listing them. `Admit` returns an admission as a
+value and prints nothing: a refusal, or the bound, the survivor limit, and the
+pure functions its sizing and epilogue lines are built from. `Run` prints them,
+and asks nothing about which walk it holds. It is a closed class and not an
+enumeration with a `switch` at each site, for the reasons its remarks give: the
+walks differ in behaviour and not only in data, abstract members make the
+compiler check that every walk supplies every part, and the closed set lets a
+test run over `All`.
+
+**`FareyWalk` is guarded by a survivor count, checked twice.** It costs about
+`log Q` plus a step a survivor, so its survivors are its cost, and a count can
+be predicted where a time could only be sampled: a `FareyWalk` run pays for no
+calibration. Before the walk, `SurvivorCountGuard.Refuse` turns down a run
+whose expected survivors, summed over the walks it makes, pass the limit. Each
+walk is sized at its narrowest enclosure, as `Size` does, which can only
+overstate. During the walk, `SurvivorReport.Of` and `Deep` stop at the first
+survivor past the same limit, because an expectation is not a bound. The walk
+goes to the derived `Q`: nothing caps it, and `Afford` is not consulted.
+
+**At a derived bound a deep run expects about 0.61, whatever the precision** —
+`Q = floor(ε^(-1/2))` cancels the `ε`, as it does for the null. So the check
+before the walk cannot refuse a deep run, and the one during it is deep's guard.
+`Expected_AtADerivedBoundADeepWalkExpectsUnderOne` pins that from `1e-8` to
+`1e-60`.
+
+**The limit is 10⁸ by default and the user's to set**: after the walk's word,
+as in `survivors 3 2 12 farey 500000000`. It is read as digits alone — an exact
+integer, never through a `double`. It is refused beside `denominator`, which is
+bounded by time and would ignore it. `SurvivorCountGuard.DefaultLimit`'s remarks
+are the one statement of its basis: a probe whose counts matched the expected
+sums to three figures, admitting every documented chart and refusing
+`3 4 13`.
+
+**A refusal mid-walk is a value, not an exception.** `SurvivorOutcome` holds
+either a report or a `SurvivorCountRefusal`, and `.Report` throws on a refused
+run so a caller cannot read past one. A refusal is an expected outcome of the
+count policy, shaped like every other refusal this runner returns before
+exiting 2. Exceptions stay for defects, like `FareyWalk`'s own
+`UnreachableException`.
+
+**The report reads the same under either walk.** The walks yield in different
+orders — `DenominatorWalk` by denominator and then value, `FareyWalk` by value —
+so a report that kept whatever arrived first would describe the walk.
+`Survivors` holds the `SurvivorsShown` simplest, by denominator and then value,
+and the nearest-excluded family breaks a distance tie the same way. That order
+is `DenominatorWalk`'s own, so under it nothing changed.
+
+**`DenominatorWalk` keeps its time model unchanged** — everything from the cost
+law through `RefuseUnaffordableControl` above. Its guard walks under
+`SurvivorLimit.None`.
+
+**The controls run under both walks.** `Zeta.Tests/WalkTheory` takes its cases
+from `SurvivorWalkChoice.All`, so `SurvivorSetControlTests` and every test whose
+result a walk produces covers each walk the runner offers.
 
 ### Presentation lives here, not in the library
 

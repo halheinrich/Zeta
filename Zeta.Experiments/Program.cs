@@ -179,28 +179,41 @@ internal static class Program
         notes.WriteLine();
         notes.WriteLine("  survivors has no depth ceiling, unlike target, because what a schedule");
         notes.WriteLine("  costs is priced off the enclosures a run REALISES and an argument cannot");
-        notes.WriteLine("  see those. It runs, times a short sample against those enclosures, and");
+        notes.WriteLine("  see those. How it is priced is the walk's, and the output names both.");
+        notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  refuses the enumeration if that predicts past {SurvivorRun.BudgetSeconds} seconds. A budget in"));
+            $"  {SurvivorWalkChoice.Farey.Name}, the default, costs about log Q plus one step a survivor, so it"));
+        notes.WriteLine("  is guarded by a COUNT: the survivors expected over the prefixes it walks,");
+        notes.WriteLine("  6*h*Q^2/pi^2 each, are checked against a limit before the walk, and the");
+        notes.WriteLine("  survivors found are checked against it as the walk runs - an expectation");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  is not a bound. The limit is {SurvivorCountGuard.DefaultLimit:N0} unless you give another."));
+        notes.WriteLine("  No calibration, and nothing caps Q: deep walks to the derived bound.");
+        notes.WriteLine();
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {SurvivorWalkChoice.Denominator.Name} is the reference, linear in Q, and is guarded by TIME. It"));
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  times a short sample and refuses a chart predicted past {SurvivorRun.BudgetSeconds} seconds -"));
         notes.WriteLine("  seconds rather than candidates because a candidate costs five times more");
         notes.WriteLine("  at order 10 than at order 3. Not a timed abort: the search then runs to");
         notes.WriteLine("  completion, so a slow machine refuses more and reports the same answer.");
-        notes.WriteLine("  Each collapse point walks about h*Q^2 + Q for a prefix half-width h, so a");
-        notes.WriteLine("  decade off the last end costs ten times as much, while a decade off the");
-        notes.WriteLine("  first end saves less and by no fixed factor - about eight to the decade");
-        notes.WriteLine("  here, and lumpy. RatioEnclosure.Of coarsens, so every realised half-width");
-        notes.WriteLine("  is a power of two by construction, and which one a schedule lands on is");
-        notes.WriteLine("  set by the first provider step to meet the target. Deeper runs are bought");
-        notes.WriteLine("  by starting later, at the cost of a shorter chart.");
+        notes.WriteLine("  Each collapse point walks about h*Q^2 + Q for a prefix half-width h.");
+        notes.WriteLine();
+        notes.WriteLine("  Under either walk the widest prefix dominates a chart, so a decade off the");
+        notes.WriteLine("  last end costs ten times as much, while a decade off the first end saves");
+        notes.WriteLine("  less and by no fixed factor - about eight to the decade here, and lumpy.");
+        notes.WriteLine("  RatioEnclosure.Of coarsens, so every realised half-width is a power of two");
+        notes.WriteLine("  by construction, and which one a schedule lands on is set by the first");
+        notes.WriteLine("  provider step to meet the target. Deeper runs are bought by starting later,");
+        notes.WriteLine("  at the cost of a shorter chart.");
         notes.WriteLine();
         notes.WriteLine("  deep takes that trade to its end. Its survivor set is identical, because");
-        notes.WriteLine("  SurvivorSearch intersects every enclosure it is given and seeds from the");
-        notes.WriteLine("  narrowest, so one walk over all of them is the chart's last prefix. What it");
-        notes.WriteLine("  gives up is every picture that needs a shorter prefix. Its walk is about Q");
-        notes.WriteLine("  denominators and almost nothing else, so the first exponent does not move");
-        notes.WriteLine("  its cost at all; it is priced by timing a sample of that walk itself.");
-        notes.WriteLine("  And it is never refused for that cost: where the derived Q would pass the");
-        notes.WriteLine("  budget, it walks to the largest Q the budget affords and prints both.");
+        notes.WriteLine("  every walk returns what all the enclosures it is given contain, so one walk");
+        notes.WriteLine("  over all of them is the chart's last prefix. What it gives up is every");
+        notes.WriteLine("  picture that needs a shorter prefix. The first exponent does not move its");
+        notes.WriteLine("  cost. Under the reference walk it is priced by timing a sample of that walk");
+        notes.WriteLine("  and never refused for that cost: where the derived Q would pass the budget,");
+        notes.WriteLine("  it walks to the largest Q the budget affords and prints both.");
         notes.WriteLine();
         notes.WriteLine("worth running");
         notes.WriteLine();
@@ -219,20 +232,23 @@ internal static class Program
         notes.WriteLine("                    target whose answer is known - redirect it and open");
         notes.WriteLine("                    the SVG");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  {SurvivorsCommand + " 3",-16}  the same against pi^3/zeta(3), where nothing is known -"));
-        notes.WriteLine("                    a few seconds, ending at Q = 11,585");
-        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  {SurvivorsCommand + " 3 2 9",-16}  one decade deeper from the default first end: about"));
-        notes.WriteLine("                    16 s and Q = 32,768");
+            $"  {SurvivorsCommand + " 3",-16}  the same against pi^3/zeta(3), where nothing is known:"));
+        notes.WriteLine("                    Q = 11,585, about 400,000 survivors walked in all");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  {SurvivorsCommand + " 3 4 11",-16}  what starting later buys: Q = 741,455, some 64 times"));
-        notes.WriteLine("                    the default's bound, in about two minutes and on a");
-        notes.WriteLine("                    collapse chart of eight enclosures rather than seven");
+        notes.WriteLine("                    the default's bound, on a collapse chart of eight");
+        notes.WriteLine("                    enclosures - about 13 million survivors walked");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  {DeepCommand + " 3 4 11",-16}  the same survivor set as that, without the charts, in"));
-        notes.WriteLine("                    about six seconds");
+            $"  {DeepCommand + " 5 2 15",-16}  pi^5/zeta(5) to Q = 134,217,728, the derived bound,"));
+        notes.WriteLine("                    uncapped - the run the reference walk's budget capped");
+        notes.WriteLine("                    at Q = 16,868,855");
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  {DeepCommand + " 3 5 14",-16}  Q = 23,726,566, about four minutes - and one decade"));
+            $"  {SurvivorsCommand} 3 2 9 {SurvivorWalkChoice.Denominator.Argument}"));
+        notes.WriteLine("                    the reference walk, one decade deeper from the default");
+        notes.WriteLine("                    first end: about 16 s and Q = 32,768");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {DeepCommand} 3 5 14 {SurvivorWalkChoice.Denominator.Argument}"));
+        notes.WriteLine("                    Q = 23,726,566 in about four minutes - and one decade");
         notes.WriteLine("                    further, the budget caps Q rather than refusing the run");
         notes.WriteLine();
     }
