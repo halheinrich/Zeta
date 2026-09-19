@@ -78,11 +78,18 @@ internal sealed class SurvivorReport
 {
     /// <summary>How many survivors are held for reporting, however many there are.</summary>
     /// <remarks>
+    /// <para>
     /// A survivor set is usually a handful and a refutation is empty, so this cap is not expected
     /// to bite. It exists because <see cref="SurvivorSearch"/> deliberately never materialises its
     /// candidate space, and a report that undid that by collecting everything would reintroduce
     /// the memory exhaustion that design avoids. <see cref="SurvivorCount"/> is the true figure
     /// either way.
+    /// </para>
+    /// <para>
+    /// <b>Where it does bite, the ones held are the simplest, not the first.</b> See
+    /// <see cref="Survivors"/>: the walks yield in different orders, and a list that kept whatever
+    /// arrived first would be a property of the walk rather than of the survivor set.
+    /// </para>
     /// </remarks>
     public const int SurvivorsShown = 32;
 
@@ -178,11 +185,25 @@ internal sealed class SurvivorReport
     /// </remarks>
     public IReadOnlyList<long> Counts => counts;
 
-    /// <summary>Gets the survivors of every enclosure, simplest denominator first, up to <see cref="SurvivorsShown"/>.</summary>
+    /// <summary>
+    /// Gets the <see cref="SurvivorsShown"/> simplest survivors of every enclosure - smallest
+    /// denominator first, and by value within one - or all of them when there are fewer.
+    /// </summary>
     /// <remarks>
+    /// <para>
     /// Empty is a refutation and is the strongest outcome available: no rational of denominator at
     /// or below <see cref="DenominatorBound"/> is consistent with the evidence. A short list poses
     /// a conjecture and establishes nothing.
+    /// </para>
+    /// <para>
+    /// <b>Selected, not taken first, so the list is the same whichever walk produced it</b> -
+    /// halheinrich/Math#79. <see cref="DenominatorWalk"/> yields in exactly this order, so under it
+    /// the selection keeps what arrived first. <see cref="FareyWalk"/> yields in increasing value,
+    /// and at a large bound its first survivors are the leftmost, which usually have large
+    /// denominators; keeping those would print a list that says which walk ran rather than which
+    /// rationals are simplest. A bounded selection holds at most <see cref="SurvivorsShown"/> at a
+    /// time, so the laziness the walks are built for survives it.
+    /// </para>
     /// </remarks>
     public IReadOnlyList<BigRational> Survivors => survivors;
 
@@ -216,6 +237,13 @@ internal sealed class SurvivorReport
     /// <para>
     /// A deep walk has no first pass, so it follows the survivors alone and <see cref="Omitted"/>
     /// carries <see cref="SurvivorPanel.NearestExcluded"/>.
+    /// </para>
+    /// <para>
+    /// <b>Two candidates at the same distance are ordered simplest first</b>, as
+    /// <see cref="Survivors"/> is, and not by which the walk offered first. The walks yield in
+    /// different orders, so a first-come rule would let the walk decide which of a tied pair is
+    /// drawn - a pair either side of the centre, of different denominators, reaches the cap in
+    /// opposite orders under <see cref="DenominatorWalk"/> and <see cref="FareyWalk"/>.
     /// </para>
     /// </remarks>
     public IReadOnlyList<BigRational> Tracked => tracked;
@@ -466,9 +494,9 @@ internal sealed class SurvivorReport
                     Offer(nearest, survivor, centre, trackedCap);
                 }
 
-                if (narrowest && standing.Count < SurvivorsShown)
+                if (narrowest)
                 {
-                    standing.Add(survivor);
+                    KeepIfSimplest(standing, survivor);
                 }
             }
 
@@ -537,11 +565,7 @@ internal sealed class SurvivorReport
         foreach (BigRational survivor in walk(enclosures, bound.Q))
         {
             count++;
-
-            if (standing.Count < SurvivorsShown)
-            {
-                standing.Add(survivor);
-            }
+            KeepIfSimplest(standing, survivor);
         }
 
         return new SurvivorReport(
@@ -594,16 +618,21 @@ internal sealed class SurvivorReport
     /// <summary>Keeps a candidate if it is among the <paramref name="cap"/> nearest seen so far.</summary>
     /// <remarks>
     /// <para>
-    /// An insertion sort over a list that never grows past the cap, which is six in this command.
-    /// The distance is carried alongside rather than recomputed on every comparison: this runs
-    /// once per candidate under the widest enclosure, which is hundreds of thousands of times, and
-    /// a rational subtraction per comparison would make the selection cost more than the search it
-    /// is watching.
+    /// An insertion sort over a list that never grows past the cap, which is
+    /// <see cref="SurvivorRun.TrackedCap"/> in this command. The distance is carried alongside
+    /// rather than recomputed on every comparison: this runs once per candidate under the widest
+    /// enclosure, which is hundreds of thousands of times, and a rational subtraction per
+    /// comparison would make the selection cost more than the search it is watching.
     /// </para>
     /// <para>
     /// The comparison is exact rational arithmetic. Comparing decimal distances instead is the one
     /// place a floating-point shortcut here could silently pick the wrong candidate to draw - two
     /// near-misses can agree to every digit a <see cref="double"/> holds and still be ordered.
+    /// </para>
+    /// <para>
+    /// A tie in distance is broken by <see cref="Simpler"/>, never by arrival, for the reason
+    /// <see cref="Tracked"/> gives. The order is total, so the kept set does not depend on the
+    /// order the candidates were offered in.
     /// </para>
     /// </remarks>
     private static void Offer(
@@ -614,13 +643,16 @@ internal sealed class SurvivorReport
     {
         BigRational distance = BigRational.Abs(candidate - centre);
 
-        if (nearest.Count == cap && distance >= nearest[^1].Distance)
+        bool Precedes((BigRational Candidate, BigRational Distance) held) =>
+            distance < held.Distance || (distance == held.Distance && Simpler(candidate, held.Candidate));
+
+        if (nearest.Count == cap && !Precedes(nearest[^1]))
         {
             return;
         }
 
         int at = 0;
-        while (at < nearest.Count && nearest[at].Distance <= distance)
+        while (at < nearest.Count && !Precedes(nearest[at]))
         {
             at++;
         }
@@ -632,4 +664,48 @@ internal sealed class SurvivorReport
             nearest.RemoveAt(nearest.Count - 1);
         }
     }
+
+    /// <summary>Keeps a survivor if it is among the <see cref="SurvivorsShown"/> simplest seen so far.</summary>
+    /// <param name="simplest">The survivors kept so far, simplest first. Never longer than the cap.</param>
+    /// <param name="survivor">The survivor the walk just yielded.</param>
+    /// <remarks>
+    /// The same bounded insertion as <see cref="Offer"/>, keyed on <see cref="Simpler"/> alone.
+    /// Under <see cref="DenominatorWalk"/>, whose order this is, every survivor after the cap fills
+    /// is rejected by the first comparison, so the reference walk pays one comparison a survivor
+    /// for it; under <see cref="FareyWalk"/> the kept set settles as quickly as simple survivors
+    /// turn up.
+    /// </remarks>
+    private static void KeepIfSimplest(List<BigRational> simplest, BigRational survivor)
+    {
+        if (simplest.Count == SurvivorsShown && !Simpler(survivor, simplest[^1]))
+        {
+            return;
+        }
+
+        int at = 0;
+        while (at < simplest.Count && !Simpler(survivor, simplest[at]))
+        {
+            at++;
+        }
+
+        simplest.Insert(at, survivor);
+
+        if (simplest.Count > SurvivorsShown)
+        {
+            simplest.RemoveAt(simplest.Count - 1);
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="candidate"/> comes before <paramref name="other"/> in the report's
+    /// order: smaller denominator first, and smaller value within one denominator.
+    /// </summary>
+    /// <remarks>
+    /// Total over distinct rationals, since two rationals in lowest terms that share a denominator
+    /// and a value are the same rational. It is <see cref="DenominatorWalk"/>'s own yield order,
+    /// which is why the selection is behaviour-neutral under that walk.
+    /// </remarks>
+    private static bool Simpler(BigRational candidate, BigRational other) =>
+        candidate.Denominator < other.Denominator ||
+        (candidate.Denominator == other.Denominator && candidate < other);
 }

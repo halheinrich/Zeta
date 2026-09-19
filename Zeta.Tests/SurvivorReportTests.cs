@@ -239,6 +239,63 @@ public sealed class SurvivorReportTests
         Assert.Equal([BigRational.FromInteger(6), Ratio(11, 2)], report.Tracked);
     }
 
+    // ---------- the report reads the same under either walk ----------
+
+    /// <summary>The two walks, which yield the same set in different orders.</summary>
+    private static readonly (string Name, SurvivorWalk Walk)[] BothWalks =
+    [
+        (nameof(DenominatorWalk), ReferenceWalk),
+        (nameof(FareyWalk), new FareyWalk().Survivors),
+    ];
+
+    [Fact]
+    public void Survivors_AreTheSimplestHeldAndNotTheFirstYielded_UnderEitherWalk()
+    {
+        // 6 +- 1/2 at Q = 12 holds more survivors than the report lists, so the cap bites. The
+        // expectation is stated independently of the selection: every survivor, sorted by
+        // denominator and then value by LINQ, and cut to the list's length.
+        Approximation[] enclosures = [At(BigRational.FromInteger(6), 1, 2)];
+        const int Bound = 12;
+        List<BigRational> all = [.. ReferenceWalk(enclosures, Bound)];
+        BigRational[] simplest =
+            [.. all.OrderBy(survivor => survivor.Denominator).ThenBy(survivor => survivor).Take(SurvivorReport.SurvivorsShown)];
+
+        Assert.True(all.Count > SurvivorReport.SurvivorsShown, "The fixture must hold more survivors than are listed.");
+        Assert.NotEqual(simplest, new FareyWalk().Survivors(enclosures, Bound).Take(SurvivorReport.SurvivorsShown));
+
+        foreach ((string name, SurvivorWalk walk) in BothWalks)
+        {
+            SurvivorReport chart = SurvivorReport.Of(enclosures, Bound, Cap, walk);
+            SurvivorReport deep = SurvivorReport.Deep(enclosures, Uncapped(Bound), Cap, walk);
+
+            Assert.True(simplest.SequenceEqual(chart.Survivors), Inv($"{name}: the chart listed other survivors."));
+            Assert.True(simplest.SequenceEqual(deep.Survivors), Inv($"{name}: deep listed other survivors."));
+            Assert.Equal(all.Count, chart.SurvivorCount);
+            Assert.Equal(all.Count, deep.SurvivorCount);
+        }
+    }
+
+    [Fact]
+    public void NearestExcluded_BreaksADistanceTieBySimplicity_UnderEitherWalk()
+    {
+        // Centred on 73/12, 17/3 and 13/2 both sit 5/12 away, and the two walks offer them in
+        // opposite orders: DenominatorWalk reaches 13/2 at denominator 2 first, FareyWalk reaches
+        // 17/3 first because it is smaller. Nearer than both are 6 (1/12) and 19/3 (1/4), so a cap
+        // of three admits exactly one of the pair. Simpler wins - 13/2, denominator 2 - whichever
+        // walk ran. The final enclosure excludes everything at Q = 3, so the survivors add nothing.
+        BigRational centre = Ratio(73, 12);
+        Approximation[] enclosures = [At(centre, 1, 2), At(centre, 1, 100)];
+        BigRational[] expected = [BigRational.FromInteger(6), Ratio(19, 3), Ratio(13, 2)];
+
+        foreach ((string name, SurvivorWalk walk) in BothWalks)
+        {
+            SurvivorReport report = SurvivorReport.Of(enclosures, 3, 3, walk);
+
+            Assert.Empty(report.Survivors);
+            Assert.True(expected.SequenceEqual(report.Tracked), Inv($"{name}: followed {string.Join(", ", report.Tracked)}."));
+        }
+    }
+
     // ---------- guards ----------
 
     [Fact]
