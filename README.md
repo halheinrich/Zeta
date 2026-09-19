@@ -122,7 +122,7 @@ the same way over 51 enclosures, leaves exactly one rational of denominator at
 most `1792728671193156477399422023278` standing: `945/1`, § 1's value, with a
 null of **1.9e-61**. A denominator of 1, priced some sixty orders of magnitude
 below chance, against odd-order survivors whose denominators run to thirty and
-thirty-one digits and price between a tenth and a half.
+thirty-one digits and price from 0.098 to 0.52.
 
 For comparison, the opening table of `halheinrich/Math#79` records the
 umbrella's earlier runs to 1e-15 under the reference `DenominatorWalk`, whose
