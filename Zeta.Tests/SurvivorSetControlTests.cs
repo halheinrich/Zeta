@@ -7,7 +7,7 @@ namespace HalHeinrich.Numerics.Tests;
 /// The positive controls of <c>SPEC-rational-ratio.md</c> section 4 in the form that section now
 /// states them: under a denominator bound fixed in advance, the survivor set of <c>pi^n/zeta(n)</c>
 /// is exactly the known answer - at every even order from 2 to 16, through real providers, the
-/// refiner's halting rule and <see cref="SurvivorSearch"/>.
+/// refiner's halting rule and each <see cref="SurvivorSearch"/> the runner offers.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -74,7 +74,10 @@ namespace HalHeinrich.Numerics.Tests;
 /// depths, which nothing here looks at. This file is the criterion section 4 names.
 /// </para>
 /// <para>
-/// <b>Cost.</b> Provider refinement is a few milliseconds at every order; the price is the walk
+/// <b>Cost.</b> Provider refinement is a few milliseconds at every order. Under
+/// <see cref="FareyWalk"/> the walk adds about <c>log Q</c> steps and one per survivor, which is
+/// nothing beside it; what follows is <see cref="DenominatorWalk"/>'s case, measured before a
+/// second walk existed. There the price is the walk
 /// over 4096 denominators, and it rises with the order because each step rounds the enclosure's
 /// endpoints against the next denominator - endpoints that ran from under a hundred digits at
 /// n = 2 to some 1300 at n = 16 in the probe. Measured on this bench on 2026-09-10 with this class
@@ -105,16 +108,34 @@ public sealed class SurvivorSetControlTests
 
     private static string Inv(FormattableString message) => message.ToString(CultureInfo.InvariantCulture);
 
+    /// <summary>Gets every even order from 2 to 16, under every walk the runner offers.</summary>
+    /// <remarks>
+    /// Both walks, ruled on <c>halheinrich/Math#79</c> leg 2, and taken from
+    /// <see cref="WalkTheory"/> so the control covers whatever walks the runner can be asked for.
+    /// The enclosures are the same under either; what differs is the search, and the control is
+    /// that each search leaves the answer alone.
+    /// </remarks>
+    public static TheoryData<int, string> OrdersUnderEveryWalk
+    {
+        get
+        {
+            var data = new TheoryData<int, string>();
+
+            foreach (int order in new[] { 2, 4, 6, 8, 10, 12, 14, 16 })
+            {
+                foreach (string walk in WalkTheory.Names)
+                {
+                    data.Add(order, walk);
+                }
+            }
+
+            return data;
+        }
+    }
+
     [Theory]
-    [InlineData(2)]
-    [InlineData(4)]
-    [InlineData(6)]
-    [InlineData(8)]
-    [InlineData(10)]
-    [InlineData(12)]
-    [InlineData(14)]
-    [InlineData(16)]
-    public void TheSurvivorSetUnderABoundFixedInAdvanceIsExactlyTheAnswer(int order)
+    [MemberData(nameof(OrdersUnderEveryWalk))]
+    public void TheSurvivorSetUnderABoundFixedInAdvanceIsExactlyTheAnswer(int order, string walk)
     {
         BigRational answer = EvenZetaRatio.Of(order);
 
@@ -133,7 +154,7 @@ public sealed class SurvivorSetControlTests
         // Every enclosure the run realised, not only the last: an earlier one that excluded the
         // answer would empty the set, and that is the refutation of a true answer this bench
         // exists never to report.
-        List<BigRational> survivors = [.. new DenominatorWalk().Survivors(enclosures, DenominatorBound)];
+        List<BigRational> survivors = [.. WalkTheory.Named(walk)(enclosures, DenominatorBound)];
 
         Assert.Equal([answer], survivors);
     }
