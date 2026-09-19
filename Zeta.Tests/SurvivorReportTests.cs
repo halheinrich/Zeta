@@ -1207,7 +1207,7 @@ public sealed class SurvivorReportTests
             Calls.Add(given);
             Bounds.Add(denominatorBound);
 
-            return SurvivorSearch.Survivors(given, denominatorBound);
+            return new DenominatorWalk().Survivors(given, denominatorBound);
         }
     }
 

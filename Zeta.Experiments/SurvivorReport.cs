@@ -98,6 +98,10 @@ internal sealed class SurvivorReport
     private const string NoEnclosuresMessage =
         "A survivor report needs at least one enclosure to intersect.";
 
+    /// <summary>The walk a report calls when handed none: the reference, which is what ran before a walk could be chosen.</summary>
+    /// <remarks>Stateless, so one instance serves every report.</remarks>
+    private static readonly SurvivorSearch Reference = new DenominatorWalk();
+
     /// <summary>What a deep walk cannot produce, in the order the chart would have drawn it.</summary>
     private static readonly SurvivorPanel[] DeepOmits = [SurvivorPanel.Collapse, SurvivorPanel.NearestExcluded];
 
@@ -408,7 +412,7 @@ internal sealed class SurvivorReport
     /// Called with each enclosure's index and the count still standing after it, so a caller can
     /// report progress on a walk whose first step is much the most expensive. May be null.
     /// </param>
-    /// <param name="walk">The walk to call once per prefix; <see cref="SurvivorSearch.Survivors"/> when null.</param>
+    /// <param name="walk">The walk to call once per prefix; <see cref="DenominatorWalk"/>'s when null.</param>
     /// <returns>The report.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
@@ -431,7 +435,7 @@ internal sealed class SurvivorReport
         SurvivorWalk? walk = null)
     {
         Validate(enclosures, trackedCap);
-        walk ??= SurvivorSearch.Survivors;
+        walk ??= Reference.Survivors;
 
         var counts = new long[enclosures.Count];
         var nearest = new List<(BigRational Candidate, BigRational Distance)>();
@@ -482,7 +486,7 @@ internal sealed class SurvivorReport
     /// budget may have capped below the derived depth.
     /// </param>
     /// <param name="trackedCap">How many survivors the distance chart may follow. At least one.</param>
-    /// <param name="walk">The walk to call, once; <see cref="SurvivorSearch.Survivors"/> when null.</param>
+    /// <param name="walk">The walk to call, once; <see cref="DenominatorWalk"/>'s when null.</param>
     /// <returns>The report, with <see cref="Omitted"/> naming the two panels a single walk cannot produce.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
@@ -519,7 +523,7 @@ internal sealed class SurvivorReport
         SurvivorWalk? walk = null)
     {
         Validate(enclosures, trackedCap);
-        walk ??= SurvivorSearch.Survivors;
+        walk ??= Reference.Survivors;
 
         long count = 0;
         var standing = new List<BigRational>();

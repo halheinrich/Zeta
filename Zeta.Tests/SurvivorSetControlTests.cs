@@ -133,7 +133,7 @@ public sealed class SurvivorSetControlTests
         // Every enclosure the run realised, not only the last: an earlier one that excluded the
         // answer would empty the set, and that is the refutation of a true answer this bench
         // exists never to report.
-        List<BigRational> survivors = [.. SurvivorSearch.Survivors(enclosures, DenominatorBound)];
+        List<BigRational> survivors = [.. new DenominatorWalk().Survivors(enclosures, DenominatorBound)];
 
         Assert.Equal([answer], survivors);
     }
