@@ -74,6 +74,67 @@ sweep depth is set by the continued-fraction structure of the value being asked
 about, so a computed ceiling would have to trust the extrapolation it exists to
 guard against.
 
+## The first runs at π⁵/ζ(5), π⁷/ζ(7) and π⁹/ζ(9)
+
+Measured on this bench, 2026-09-19: `MachinPi` and `EulerMaclaurinZeta(n)`,
+fifty-nine targets from 1e-2 to 1e-60, walked once over every distinct
+enclosure by `FareyWalk` — the `deep` command — in a Release build, at
+below-normal priority beside other CPU-heavy jobs; a snapshot just after read
+the processor 34% busy. Each run took about a second. The arithmetic is exact,
+and every figure the umbrella tabulated from its own runs of the same four —
+enclosures, `Q`, survivor, its denominator and its null — agrees here
+(`halheinrich/Math#79`).
+
+**π⁵/ζ(5), 50 enclosures.** Of every rational whose denominator is at most
+`1267650600228229401496703205376`, exactly one is consistent with the
+enclosures: `156109496426953077029470280891723/528966853227567294091141814073`.
+So if π⁵/ζ(5) = *a*/*b* in lowest terms, either *a*/*b* is that rational or
+*b* > `1267650600228229401496703205376` — and in either case
+*b* ≥ `528966853227567294091141814073`.
+
+**π⁷/ζ(7), 49 enclosures.** Of every rational whose denominator is at most
+`1792728671193156477399422023278`, exactly one is consistent with the
+enclosures: `2156300704480876210245027521188583/719898398335947823603655005744`.
+So if π⁷/ζ(7) = *a*/*b* in lowest terms, either *a*/*b* is that rational or
+*b* > `1792728671193156477399422023278` — and in either case
+*b* ≥ `719898398335947823603655005744`.
+
+**π⁹/ζ(9), 50 enclosures.** Of every rational whose denominator is at most
+`2535301200456458802993406410752`, exactly one is consistent with the
+enclosures:
+`69557143763596194592068818606973644/2338106262537525696850195248555`. So if
+π⁹/ζ(9) = *a*/*b* in lowest terms, either *a*/*b* is that rational or
+*b* > `2535301200456458802993406410752` — and in either case
+*b* ≥ `2338106262537525696850195248555`.
+
+Each survivor is printed with its **null**: how many rationals that simple a
+*generic* target of this precision would leave standing by chance.
+`SPEC-rational-ratio.md` § 1 derives the figure and says why it, rather than the
+count, is what a survivor set is read against. Here the three survivors price at
+**0.11**, **0.098** and **0.52** — where noise lives, beside the 0.61 that
+chance leaves under the whole bound at every precision. So each is a conjecture
+that a deeper run would refute and replace with another, and none is evidence
+of anything. The result is the bound on *b*, and it is the whole of what was
+established.
+
+**The control shows what a real answer looks like at this depth.** π⁶/ζ(6), run
+the same way over 51 enclosures, leaves exactly one rational of denominator at
+most `1792728671193156477399422023278` standing: `945/1`, § 1's value, with a
+null of **1.9e-61**. A denominator of 1, priced some sixty orders of magnitude
+below chance, against odd-order survivors whose denominators run to thirty and
+thirty-one digits and price between a tenth and a half.
+
+For comparison, the opening table of `halheinrich/Math#79` records the
+umbrella's earlier runs to 1e-15 under the reference `DenominatorWalk`, whose
+five-minute budget capped them at *b* > 16,868,855 for order 5 and
+*b* > 11,586,288 for order 7. Those are the issue's readings, not this
+repository's.
+
+Reproduce each with
+`dotnet run --project Zeta.Experiments -c Release -- deep 5 2 60 > deep5.svg`,
+and the same with 7, 9 and 6 in place of 5. `FareyWalk` is the default walk,
+so no walk word is needed.
+
 ## The method
 
 1. **Enclose** π^n and ζ(n) — each a value with a proven bound on its own
