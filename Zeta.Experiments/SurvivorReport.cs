@@ -29,10 +29,19 @@ internal enum SurvivorPanel
 /// <param name="denominatorBound">The largest denominator to consider.</param>
 /// <returns>The survivors.</returns>
 /// <remarks>
+/// <para>
 /// <see cref="SurvivorSearch.Survivors"/>'s shape, named so a report can be handed a walk to call.
-/// Production always hands the real one, by leaving the argument out; a test hands one that counts
-/// its calls, which is what makes "a deep run walks once" a count rather than a timing - the same
-/// seam <see cref="RatioRun.Execute"/>'s optional searcher gives <see cref="NoSearch"/>'s tests.
+/// Production hands the <see cref="SurvivorSearch.Survivors"/> of whichever walk the run chose; a
+/// test hands one that counts its calls, which is what makes "a deep run walks once" a count rather
+/// than a timing - the same seam <see cref="RatioRun.Execute"/>'s optional searcher gives
+/// <see cref="NoSearch"/>'s tests.
+/// </para>
+/// <para>
+/// <b>A delegate and not a <see cref="SurvivorSearch"/>, because nothing outside
+/// <c>RationalApproximation</c> can derive from that type.</b> Its constructor is
+/// <c>private protected</c>, so the set of walks is closed - which is what it is for - and a
+/// counting fake has to wrap a walk rather than be one.
+/// </para>
 /// </remarks>
 internal delegate IEnumerable<BigRational> SurvivorWalk(
     IEnumerable<Approximation> enclosures, BigInteger denominatorBound);
@@ -97,10 +106,6 @@ internal sealed class SurvivorReport
 
     private const string NoEnclosuresMessage =
         "A survivor report needs at least one enclosure to intersect.";
-
-    /// <summary>The walk a report calls when handed none: the reference, which is what ran before a walk could be chosen.</summary>
-    /// <remarks>Stateless, so one instance serves every report.</remarks>
-    private static readonly SurvivorSearch Reference = new DenominatorWalk();
 
     /// <summary>What a deep walk cannot produce, in the order the chart would have drawn it.</summary>
     private static readonly SurvivorPanel[] DeepOmits = [SurvivorPanel.Collapse, SurvivorPanel.NearestExcluded];
@@ -408,13 +413,16 @@ internal sealed class SurvivorReport
     /// <param name="enclosures">The enclosures, in order. At least one.</param>
     /// <param name="denominatorBound">The largest denominator to consider.</param>
     /// <param name="trackedCap">How many candidates the distance chart may follow. At least one.</param>
+    /// <param name="walk">
+    /// The walk to call once per prefix. Required, so that which walk produced a report is always
+    /// the caller's stated choice and never a default nobody named.
+    /// </param>
     /// <param name="afterEach">
     /// Called with each enclosure's index and the count still standing after it, so a caller can
     /// report progress on a walk whose first step is much the most expensive. May be null.
     /// </param>
-    /// <param name="walk">The walk to call once per prefix; <see cref="DenominatorWalk"/>'s when null.</param>
     /// <returns>The report.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> or <paramref name="walk"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="denominatorBound"/> is negative, or <paramref name="trackedCap"/> is below one.
@@ -431,11 +439,10 @@ internal sealed class SurvivorReport
         IReadOnlyList<Approximation> enclosures,
         BigInteger denominatorBound,
         int trackedCap,
-        Action<int, long>? afterEach = null,
-        SurvivorWalk? walk = null)
+        SurvivorWalk walk,
+        Action<int, long>? afterEach = null)
     {
-        Validate(enclosures, trackedCap);
-        walk ??= Reference.Survivors;
+        Validate(enclosures, trackedCap, walk);
 
         var counts = new long[enclosures.Count];
         var nearest = new List<(BigRational Candidate, BigRational Distance)>();
@@ -486,9 +493,9 @@ internal sealed class SurvivorReport
     /// budget may have capped below the derived depth.
     /// </param>
     /// <param name="trackedCap">How many survivors the distance chart may follow. At least one.</param>
-    /// <param name="walk">The walk to call, once; <see cref="DenominatorWalk"/>'s when null.</param>
+    /// <param name="walk">The walk to call, once. Required, for the reason <see cref="Of"/> gives.</param>
     /// <returns>The report, with <see cref="Omitted"/> naming the two panels a single walk cannot produce.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> is null.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="enclosures"/> or <paramref name="walk"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enclosures"/> is empty.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="bound"/>'s <see cref="SurvivorBound.Q"/> is negative, or
@@ -520,10 +527,9 @@ internal sealed class SurvivorReport
         IReadOnlyList<Approximation> enclosures,
         SurvivorBound bound,
         int trackedCap,
-        SurvivorWalk? walk = null)
+        SurvivorWalk walk)
     {
-        Validate(enclosures, trackedCap);
-        walk ??= Reference.Survivors;
+        Validate(enclosures, trackedCap, walk);
 
         long count = 0;
         var standing = new List<BigRational>();
@@ -549,9 +555,10 @@ internal sealed class SurvivorReport
     }
 
     /// <summary>The argument checks both walks share, made before either costs anything.</summary>
-    private static void Validate(IReadOnlyList<Approximation> enclosures, int trackedCap)
+    private static void Validate(IReadOnlyList<Approximation> enclosures, int trackedCap, SurvivorWalk walk)
     {
         ArgumentNullException.ThrowIfNull(enclosures);
+        ArgumentNullException.ThrowIfNull(walk);
         ArgumentOutOfRangeException.ThrowIfLessThan(trackedCap, 1);
 
         if (enclosures.Count == 0)

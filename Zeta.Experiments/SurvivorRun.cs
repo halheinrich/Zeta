@@ -120,6 +120,14 @@ internal static class SurvivorRun
     /// </remarks>
     public static IRationalApproximator Searcher { get; } = new NoSearch();
 
+    /// <summary>The survivor walk this command runs, and the one its time budget is calibrated against.</summary>
+    /// <remarks>
+    /// <see cref="DenominatorWalk"/>, the reference, which is the walk this command ran before a
+    /// walk could be chosen. Named once so every call, the calibration's included, passes the same
+    /// walk explicitly rather than leaving a report to default to one.
+    /// </remarks>
+    private static readonly SurvivorWalk ReferenceWalk = new DenominatorWalk().Survivors;
+
     /// <summary>How long this command will spend enumerating candidates before it refuses.</summary>
     /// <remarks>
     /// <para>
@@ -354,11 +362,12 @@ internal static class SurvivorRun
 
         var walk = Stopwatch.StartNew();
         SurvivorReport report = mode == SurvivorMode.Deep
-            ? SurvivorReport.Deep(enclosures, bound, TrackedCap)
+            ? SurvivorReport.Deep(enclosures, bound, TrackedCap, ReferenceWalk)
             : SurvivorReport.Of(
                 enclosures,
                 derived,
                 TrackedCap,
+                ReferenceWalk,
                 (index, count) => notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
                     $"  enclosure {index}  half-width {Presentation.Magnitude(enclosures[index].MaxError),-9}  " +
                     $"still standing {count:N0}")));
@@ -1272,8 +1281,8 @@ internal static class SurvivorRun
         {
             var clock = Stopwatch.StartNew();
             _ = mode == SurvivorMode.Deep
-                ? SurvivorReport.Deep(enclosures, new SurvivorBound(bound, null), TrackedCap)
-                : SurvivorReport.Of(enclosures, bound, TrackedCap);
+                ? SurvivorReport.Deep(enclosures, new SurvivorBound(bound, null), TrackedCap, ReferenceWalk)
+                : SurvivorReport.Of(enclosures, bound, TrackedCap, ReferenceWalk);
             clock.Stop();
 
             fastest = Math.Min(fastest, clock.ElapsedTicks);
