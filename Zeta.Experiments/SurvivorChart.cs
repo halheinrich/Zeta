@@ -9,7 +9,11 @@ namespace HalHeinrich.Numerics.Experiments;
 /// </summary>
 /// <param name="Title">The quantity, as <c>pi^2 / zeta(2)</c>.</param>
 /// <param name="Providers">The two providers, named.</param>
-/// <param name="Searcher">The searcher <see cref="RatioRun.Execute"/> was given.</param>
+/// <param name="Walk">
+/// The survivor walk that produced the set, by its own type name - <c>FareyWalk</c> or
+/// <c>DenominatorWalk</c>. Whether it walked once or per prefix is the report's to say, and the
+/// heading reads it there.
+/// </param>
 /// <param name="Schedule">The schedule and how many distinct enclosures it realised.</param>
 /// <param name="BoundDerivation">Where <c>Q</c> came from, in one line.</param>
 /// <remarks>
@@ -21,7 +25,7 @@ namespace HalHeinrich.Numerics.Experiments;
 internal sealed record ChartCaption(
     string Title,
     string Providers,
-    string Searcher,
+    string Walk,
     string Schedule,
     string BoundDerivation);
 
@@ -110,7 +114,7 @@ internal static class SurvivorChart
         }
 
         Distances(svg, report, distanceTop, legend);
-        Caveat(svg, report, height - 60);
+        Caveat(svg, report, caption, height - 60);
 
         Svg.Close(svg);
     }
@@ -168,7 +172,8 @@ internal static class SurvivorChart
     {
         Svg.Text(svg, PlotLeft, 34, caption.Title + " - what the enclosures leave standing", "h1");
 
-        Svg.Text(svg, PlotLeft, 56, "providers  " + caption.Providers + "     search  " + caption.Searcher, "body");
+        Svg.Text(svg, PlotLeft, 56, "providers  " + caption.Providers + "     walk  " + caption.Walk +
+            (report.Omitted.Count > 0 ? ", once over every enclosure (deep)" : ""), "body");
         Svg.Text(svg, PlotLeft, 73, "schedule   " + caption.Schedule, "body");
         Svg.Text(svg, PlotLeft, 90, "bound      " + caption.BoundDerivation, "body");
 
@@ -350,7 +355,7 @@ internal static class SurvivorChart
         }
     }
 
-    private static void Caveat(TextWriter svg, SurvivorReport report, double top)
+    private static void Caveat(TextWriter svg, SurvivorReport report, ChartCaption caption, double top)
     {
         Svg.Text(svg, PlotLeft, top,
             "Numerics refute a rational relation and bound the height of one. Nothing finite establishes it.",
@@ -362,7 +367,7 @@ internal static class SurvivorChart
             "caveat");
 
         Svg.Text(svg, PlotLeft, top + 34,
-            "The bound's axis is denominators, which is SurvivorSearch's own axis and not the run searcher's.",
+            "The bound's axis is denominators, which is " + caption.Walk + "'s own axis and not the run searcher's.",
             "small");
     }
 

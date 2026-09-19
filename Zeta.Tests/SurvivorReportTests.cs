@@ -39,6 +39,14 @@ public sealed class SurvivorReportTests
 
     private static string Inv(FormattableString message) => message.ToString(CultureInfo.InvariantCulture);
 
+    /// <summary>A request for this order at the default schedule and walk, as a refusal that quotes one reads it.</summary>
+    private static SurvivorRequest Asked(int order, SurvivorMode mode) =>
+        new(order, SurvivorRun.DefaultFirstExponent, SurvivorRun.DefaultLastExponent, mode, SurvivorWalkChoice.Default);
+
+    /// <summary>A deep request under the reference walk, the only one whose budget caps a bound.</summary>
+    private static SurvivorRequest AskedOfTheReference(int order) =>
+        Asked(order, SurvivorMode.Deep) with { Walk = SurvivorWalkChoice.Denominator };
+
     // ---------- the derived bound ----------
 
     [Theory]
@@ -455,9 +463,9 @@ public sealed class SurvivorReportTests
         // Decidable without a search, which is the whole point: the denominator is known in
         // advance from section 1's identity and Q from enclosures the pipeline has already
         // realised. One below refuses, exactly at it does not.
-        Assert.NotNull(SurvivorRun.RefuseUnreachableControl(order, denominator - 1, SurvivorMode.Chart));
-        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, denominator, SurvivorMode.Chart));
-        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, denominator + 1, SurvivorMode.Chart));
+        Assert.NotNull(SurvivorRun.RefuseUnreachableControl(Asked(order, SurvivorMode.Chart), denominator - 1));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(Asked(order, SurvivorMode.Chart), denominator));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(Asked(order, SurvivorMode.Chart), denominator + 1));
     }
 
     [Fact]
@@ -467,7 +475,7 @@ public sealed class SurvivorReportTests
         // denominator is 43,867, so the survivor set would have come back EMPTY - which the
         // epilogue calls "a refutation, and the strongest result this bench produces". A false
         // refutation of a true answer, and nothing on the page to say so.
-        string? refusal = SurvivorRun.RefuseUnreachableControl(18, 16_384, SurvivorMode.Chart);
+        string? refusal = SurvivorRun.RefuseUnreachableControl(Asked(18, SurvivorMode.Chart), 16_384);
 
         Assert.NotNull(refusal);
         Assert.Contains("38979295480125/43867", refusal, StringComparison.Ordinal);
@@ -484,8 +492,8 @@ public sealed class SurvivorReportTests
         // Not an oversight and not a gap. Nobody knows a denominator to compare against at an odd
         // order - that is the question - so there is no bound this could check, and an odd run's
         // empty survivor set is a genuine refutation rather than a false one.
-        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, 1, SurvivorMode.Chart));
-        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, BigInteger.Pow(10, 12), SurvivorMode.Chart));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(Asked(order, SurvivorMode.Chart), 1));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(Asked(order, SurvivorMode.Chart), BigInteger.Pow(10, 12)));
     }
 
     [Theory]
@@ -511,7 +519,7 @@ public sealed class SurvivorReportTests
         Assert.True(
             SurvivorSearch.IsReachable(answer, reached),
             Inv($"1e-{exponent} derives Q = {reached}, from which {answer} is not reachable."));
-        Assert.Null(SurvivorRun.RefuseUnreachableControl(order, reached, SurvivorMode.Chart));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(Asked(order, SurvivorMode.Chart), reached));
 
         // And it is the shallowest, which is the half of the promise a too-cautious search would
         // break silently: one decade less must not reach, unless it would fall below the floor.
@@ -952,7 +960,7 @@ public sealed class SurvivorReportTests
         // moving the default a deliberate act that reddens something.
         Assert.Null(SurvivorRun.Interpret([], SurvivorMode.Chart, out SurvivorRequest request));
 
-        Assert.Equal(new SurvivorRequest(2, 2, 8, SurvivorMode.Chart), request);
+        Assert.Equal(new SurvivorRequest(2, 2, 8, SurvivorMode.Chart, SurvivorWalkChoice.Farey), request);
         Assert.Equal(TargetSchedule.Decades(2, 8), request.Schedule());
     }
 
@@ -972,7 +980,7 @@ public sealed class SurvivorReportTests
         // is driven to the targets that were asked for rather than to a constant pair.
         Assert.Null(SurvivorRun.Interpret(["3", "2", "12"], SurvivorMode.Chart, out SurvivorRequest request));
 
-        Assert.Equal(new SurvivorRequest(3, 2, 12, SurvivorMode.Chart), request);
+        Assert.Equal(new SurvivorRequest(3, 2, 12, SurvivorMode.Chart, SurvivorWalkChoice.Default), request);
         Assert.Equal(TargetSchedule.Decades(2, 12), request.Schedule());
         Assert.NotEqual(TargetSchedule.Decades(2, 8), request.Schedule());
     }
@@ -1041,7 +1049,7 @@ public sealed class SurvivorReportTests
 
     [Fact]
     public void ScheduleLabel_NamesBothEndsOfWhatWasAskedFor() =>
-        Assert.Equal("1e-3 .. 1e-11", new SurvivorRequest(3, 3, 11, SurvivorMode.Chart).ScheduleLabel);
+        Assert.Equal("1e-3 .. 1e-11", new SurvivorRequest(3, 3, 11, SurvivorMode.Chart, SurvivorWalkChoice.Default).ScheduleLabel);
 
     [Fact]
     public void Preamble_ReportsTheScheduleThatRanAndNotTheDefault()
@@ -1051,7 +1059,7 @@ public sealed class SurvivorReportTests
         // SVG's caption carries the same label from the same property, so they cannot disagree.
         using var notes = new StringWriter(CultureInfo.InvariantCulture);
 
-        SurvivorRun.Preamble(notes, new SurvivorRequest(3, 3, 11, SurvivorMode.Chart), 9);
+        SurvivorRun.Preamble(notes, new SurvivorRequest(3, 3, 11, SurvivorMode.Chart, SurvivorWalkChoice.Default), 9);
 
         string written = notes.ToString();
 
@@ -1475,9 +1483,9 @@ public sealed class SurvivorReportTests
         // since raising the last exponent raises the bound that is not short.
         var bound = new SurvivorBound(100_000, 40_000);
 
-        string? refusal = SurvivorRun.RefuseUnaffordableControl(18, bound);
+        string? refusal = SurvivorRun.RefuseUnaffordableControl(AskedOfTheReference(18), bound);
 
-        Assert.Null(SurvivorRun.RefuseUnreachableControl(18, bound.Derived, SurvivorMode.Deep));
+        Assert.Null(SurvivorRun.RefuseUnreachableControl(Asked(18, SurvivorMode.Deep), bound.Derived));
         Assert.NotNull(refusal);
         Assert.Contains("EMPTY", refusal, StringComparison.Ordinal);
         Assert.Contains("40000", refusal, StringComparison.Ordinal);
@@ -1488,8 +1496,8 @@ public sealed class SurvivorReportTests
     [Fact]
     public void RefuseUnaffordableControl_TurnsOnTheAnswersOwnDenominator()
     {
-        Assert.Null(SurvivorRun.RefuseUnaffordableControl(18, new SurvivorBound(100_000, 43_867)));
-        Assert.NotNull(SurvivorRun.RefuseUnaffordableControl(18, new SurvivorBound(100_000, 43_866)));
+        Assert.Null(SurvivorRun.RefuseUnaffordableControl(AskedOfTheReference(18), new SurvivorBound(100_000, 43_867)));
+        Assert.NotNull(SurvivorRun.RefuseUnaffordableControl(AskedOfTheReference(18), new SurvivorBound(100_000, 43_866)));
     }
 
     [Fact]
@@ -1502,10 +1510,10 @@ public sealed class SurvivorReportTests
         // the refusal is the one whose claims hold, with the advice that works.
         var bound = new SurvivorBound(40_000, 30_000);
 
-        string? refusal = SurvivorRun.RefuseUnaffordableControl(18, bound);
+        string? refusal = SurvivorRun.RefuseUnaffordableControl(AskedOfTheReference(18), bound);
 
         Assert.NotNull(refusal);
-        Assert.Equal(SurvivorRun.RefuseUnreachableControl(18, bound.Derived, SurvivorMode.Deep), refusal);
+        Assert.Equal(SurvivorRun.RefuseUnreachableControl(AskedOfTheReference(18), bound.Derived), refusal);
         Assert.Contains("Raise the LAST exponent", refusal, StringComparison.Ordinal);
         Assert.DoesNotContain("No schedule change helps", refusal, StringComparison.Ordinal);
     }
@@ -1515,8 +1523,8 @@ public sealed class SurvivorReportTests
     {
         // No cap, no new hole: the derived bound was already checked. And an odd order has no
         // denominator to fall short of, which is the question the bench exists to ask.
-        Assert.Null(SurvivorRun.RefuseUnaffordableControl(18, new SurvivorBound(100, null)));
-        Assert.Null(SurvivorRun.RefuseUnaffordableControl(3, new SurvivorBound(100_000, 1)));
+        Assert.Null(SurvivorRun.RefuseUnaffordableControl(AskedOfTheReference(18), new SurvivorBound(100, null)));
+        Assert.Null(SurvivorRun.RefuseUnaffordableControl(AskedOfTheReference(3), new SurvivorBound(100_000, 1)));
     }
 
     // ---------- what the picture says about the bound ----------
@@ -1565,7 +1573,7 @@ public sealed class SurvivorReportTests
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(
-            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", "SurvivorSearch", "1e-4", "Q = 50"));
+            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", SurvivorWalkChoice.Denominator.Name, "1e-4", "Q = 50"));
 
         string drawn = document.ToString();
 
@@ -1610,7 +1618,7 @@ public sealed class SurvivorReportTests
     {
         Assert.Null(SurvivorRun.Interpret(["3", "4", "13"], SurvivorMode.Deep, out SurvivorRequest request));
 
-        Assert.Equal(new SurvivorRequest(3, 4, 13, SurvivorMode.Deep), request);
+        Assert.Equal(new SurvivorRequest(3, 4, 13, SurvivorMode.Deep, SurvivorWalkChoice.Default), request);
         Assert.Equal(TargetSchedule.Decades(4, 13), request.Schedule());
     }
 
@@ -1619,7 +1627,7 @@ public sealed class SurvivorReportTests
     {
         Assert.Null(SurvivorRun.Interpret([], SurvivorMode.Deep, out SurvivorRequest request));
 
-        Assert.Equal(new SurvivorRequest(2, 2, 8, SurvivorMode.Deep), request);
+        Assert.Equal(new SurvivorRequest(2, 2, 8, SurvivorMode.Deep, SurvivorWalkChoice.Farey), request);
     }
 
     [Fact]
@@ -1644,7 +1652,7 @@ public sealed class SurvivorReportTests
     [Fact]
     public void RefuseUnreachableControl_NamesTheDeepCommandToADeepCaller()
     {
-        string? refusal = SurvivorRun.RefuseUnreachableControl(18, 16_384, SurvivorMode.Deep);
+        string? refusal = SurvivorRun.RefuseUnreachableControl(Asked(18, SurvivorMode.Deep), 16_384);
 
         Assert.NotNull(refusal);
         Assert.Contains("'deep 18 2 10'", refusal, StringComparison.Ordinal);
@@ -1656,8 +1664,8 @@ public sealed class SurvivorReportTests
         using var deep = new StringWriter(CultureInfo.InvariantCulture);
         using var chart = new StringWriter(CultureInfo.InvariantCulture);
 
-        SurvivorRun.Preamble(deep, new SurvivorRequest(3, 4, 13, SurvivorMode.Deep), 10);
-        SurvivorRun.Preamble(chart, new SurvivorRequest(3, 4, 13, SurvivorMode.Chart), 10);
+        SurvivorRun.Preamble(deep, new SurvivorRequest(3, 4, 13, SurvivorMode.Deep, SurvivorWalkChoice.Default), 10);
+        SurvivorRun.Preamble(chart, new SurvivorRequest(3, 4, 13, SurvivorMode.Chart, SurvivorWalkChoice.Default), 10);
 
         Assert.Contains("ONE pass over every enclosure", deep.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("ONE pass", chart.ToString(), StringComparison.Ordinal);
@@ -1676,7 +1684,7 @@ public sealed class SurvivorReportTests
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(
-            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", "SurvivorSearch", "1e-2 .. 1e-4", "Q = 2"));
+            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", SurvivorWalkChoice.Denominator.Name, "1e-2 .. 1e-4", "Q = 2"));
 
         XDocument parsed = XDocument.Parse(document.ToString());
         string drawn = document.ToString();
@@ -1699,7 +1707,7 @@ public sealed class SurvivorReportTests
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(
-            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", "DenominatorSweep", "1e-2 .. 1e-4", "Q = 2"));
+            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", SurvivorWalkChoice.Denominator.Name, "1e-2 .. 1e-4", "Q = 2"));
 
         XDocument parsed = XDocument.Parse(document.ToString());
 
@@ -1725,7 +1733,7 @@ public sealed class SurvivorReportTests
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(
-            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", "DenominatorSweep", "1e-1", "Q = 1"));
+            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", SurvivorWalkChoice.Denominator.Name, "1e-1", "Q = 1"));
 
         string drawn = document.ToString();
 

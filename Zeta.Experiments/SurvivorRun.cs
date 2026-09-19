@@ -120,14 +120,6 @@ internal static class SurvivorRun
     /// </remarks>
     public static IRationalApproximator Searcher { get; } = new NoSearch();
 
-    /// <summary>The survivor walk this command runs, and the one its time budget is calibrated against.</summary>
-    /// <remarks>
-    /// <see cref="DenominatorWalk"/>, the reference, which is the walk this command ran before a
-    /// walk could be chosen. Named once so every call, the calibration's included, passes the same
-    /// walk explicitly rather than leaving a report to default to one.
-    /// </remarks>
-    private static readonly SurvivorWalk ReferenceWalk = new DenominatorWalk().Survivors;
-
     /// <summary>How long this command will spend enumerating candidates before it refuses.</summary>
     /// <remarks>
     /// <para>
@@ -295,7 +287,10 @@ internal static class SurvivorRun
     /// <summary>Runs the survivor report and writes it.</summary>
     /// <param name="arguments">The command's arguments, as <see cref="Interpret"/> reads them.</param>
     /// <param name="mode">How to walk the enclosures, which is which command was typed.</param>
-    /// <returns>Zero when the run completed, 2 when the arguments or the estimated cost were refused.</returns>
+    /// <returns>
+    /// Zero when the run completed; 2 when the arguments, the reach, or the walk's guard refused it -
+    /// before the walk or, for a count guard, during it.
+    /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="arguments"/> is null.</exception>
     public static int Run(string[] arguments, SurvivorMode mode)
     {
@@ -319,7 +314,7 @@ internal static class SurvivorRun
         IReadOnlyList<Approximation> enclosures = SurvivorReport.Distinct(SurvivorReport.EnclosuresOf(run));
 
         BigInteger derived = SurvivorReport.DerivedBound(enclosures[^1]);
-        string? unreachable = RefuseUnreachableControl(request.Order, derived, mode);
+        string? unreachable = RefuseUnreachableControl(request, derived);
         if (unreachable is not null)
         {
             notes.WriteLine();
@@ -327,54 +322,43 @@ internal static class SurvivorRun
             return 2;
         }
 
-        WalkPrice price = Calibrate(enclosures, derived, mode);
-        SurvivorBound bound;
-
-        if (mode == SurvivorMode.Deep)
+        // Which guard applies, and what it decides, is the chosen walk's - SurvivorWalkChoice pairs
+        // them once, so nothing below asks which walk this is.
+        SurvivorAdmission admission = request.Walk.Admit(enclosures, derived, request);
+        if (admission is RefusedWalk turnedDown)
         {
-            // Ruling 5: a deep run is never refused for its cost - its Q comes down to what the
-            // budget affords instead. Which makes the control check above necessary but no longer
-            // sufficient, since a cap can fall below an answer the derived bound reached.
-            bound = Afford(enclosures, derived, price);
-
-            string? unaffordable = RefuseUnaffordableControl(request.Order, bound);
-            if (unaffordable is not null)
-            {
-                notes.WriteLine();
-                notes.WriteLine(unaffordable);
-                return 2;
-            }
-        }
-        else
-        {
-            bound = new SurvivorBound(derived, null);
-
-            SurvivorRefusal? tooDear = Refuse(enclosures, derived, price);
-            if (tooDear is not null)
-            {
-                notes.WriteLine();
-                notes.WriteLine(tooDear.Value.Message);
-                return 2;
-            }
+            notes.WriteLine();
+            notes.WriteLine(turnedDown.Message);
+            return 2;
         }
 
-        Sizing(notes, run, enclosures, bound, price, mode);
+        var admitted = (AdmittedWalk)admission;
+        Sizing(notes, run, enclosures, admitted, mode);
 
         var walk = Stopwatch.StartNew();
-        SurvivorReport report = mode == SurvivorMode.Deep
-            ? SurvivorReport.Deep(enclosures, bound, TrackedCap, ReferenceWalk, SurvivorLimit.None).Report
+        SurvivorOutcome outcome = mode == SurvivorMode.Deep
+            ? SurvivorReport.Deep(enclosures, admitted.Bound, TrackedCap, request.Walk.Walk, admitted.Limit)
             : SurvivorReport.Of(
                 enclosures,
-                derived,
+                admitted.Bound.Q,
                 TrackedCap,
-                ReferenceWalk,
-                SurvivorLimit.None,
+                request.Walk.Walk,
+                admitted.Limit,
                 (index, count) => notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
                     $"  enclosure {index}  half-width {Presentation.Magnitude(enclosures[index].MaxError),-9}  " +
-                    $"still standing {count:N0}"))).Report;
+                    $"still standing {count:N0}")));
 
         walk.Stop();
         clock.Stop();
+
+        if (outcome.Refusal is { } passed)
+        {
+            notes.WriteLine();
+            notes.WriteLine(SurvivorCountGuard.Describe(passed, request));
+            return 2;
+        }
+
+        SurvivorReport report = outcome.Report;
 
         if (mode == SurvivorMode.Deep)
         {
@@ -382,14 +366,14 @@ internal static class SurvivorRun
                 $"  all {enclosures.Count} enclosures  still standing {report.SurvivorCount:N0}"));
         }
 
-        SurvivorChart.Write(Console.Out, report, Caption(request, run, enclosures, bound));
+        SurvivorChart.Write(Console.Out, report, Caption(request, run, enclosures, admitted.Bound));
         Epilogue(
             notes,
             report,
-            request.Order,
+            request,
+            admitted,
             clock.Elapsed.TotalSeconds,
-            new BigRational(walk.ElapsedTicks, Stopwatch.Frequency),
-            price.Seconds(Size(enclosures, bound.Q, mode)));
+            new BigRational(walk.ElapsedTicks, Stopwatch.Frequency));
 
         return 0;
     }
@@ -397,7 +381,8 @@ internal static class SurvivorRun
     /// <summary>What the command's arguments ask for, or the reason they are refused.</summary>
     /// <param name="arguments">
     /// Nothing, the order alone, or the order followed by both ends of the schedule -
-    /// <c>survivors</c>, <c>survivors 3</c>, <c>survivors 3 2 12</c>, and the same after <c>deep</c>.
+    /// <c>survivors</c>, <c>survivors 3</c>, <c>survivors 3 2 12</c>, and the same after <c>deep</c> -
+    /// then, optionally and last, the walk: <c>survivors 3 2 12 denominator</c>, or <c>deep farey</c>.
     /// </param>
     /// <param name="mode">
     /// Which command the arguments followed. It changes no rule here, only which command a refusal
@@ -422,6 +407,15 @@ internal static class SurvivorRun
     /// and the two readings differ by ten decades of cost. The schedule is taken as a pair or not
     /// at all, so that no invocation quietly means something other than what it looks like.
     /// </para>
+    /// <para>
+    /// <b>The walk is a word, and it goes last</b> - ruled on <c>halheinrich/Math#79</c> leg 2:
+    /// <see cref="FareyWalk"/> by default, <see cref="DenominatorWalk"/> by naming it. A word
+    /// rather than a flag, because this runner has one grammar - verbs and positional arguments -
+    /// and last because it is the argument least often given, so every invocation that worked
+    /// before still means what it meant. Only a word that names a walk is taken as one; anything
+    /// else falls through to the schedule's rules and is refused as the number it was not, and a
+    /// walk named anywhere but last is refused with where it goes.
+    /// </para>
     /// </remarks>
     public static string? Interpret(string[] arguments, SurvivorMode mode, out SurvivorRequest request)
     {
@@ -429,13 +423,32 @@ internal static class SurvivorRun
 
         request = default;
         string command = CommandFor(mode);
+        SurvivorWalkChoice walk = SurvivorWalkChoice.Default;
+        string[] schedule = arguments;
 
-        if (arguments.Length is 2 or > 3)
+        int walkAt = Array.FindIndex(arguments, argument => SurvivorWalkChoice.Named(argument) is not null);
+        if (walkAt >= 0)
+        {
+            string word = arguments[walkAt];
+
+            if (walkAt != arguments.Length - 1)
+            {
+                return string.Create(CultureInfo.InvariantCulture,
+                    $"'{word}' names a walk, and the walk goes last, after the order and the schedule: " +
+                    $"'{command} {word}', '{command} 3 {word}', or '{command} 3 2 12 {word}'.");
+            }
+
+            walk = SurvivorWalkChoice.Named(word)!;
+            schedule = arguments[..walkAt];
+        }
+
+        if (schedule.Length is 2 or > 3)
         {
             return string.Create(CultureInfo.InvariantCulture,
                 $"{command} takes the order of zeta, and then both ends of the schedule or " +
                 $"neither: '{command}', '{command} 3', or '{command} 3 2 12'. One exponent alone " +
-                $"would leave it guessing which end of the schedule you meant.");
+                $"would leave it guessing which end of the schedule you meant. A walk, " +
+                $"{WalkWords()}, may follow last.");
         }
 
         int order = DefaultOrder;
@@ -445,14 +458,14 @@ internal static class SurvivorRun
         string orderExample = command + " 3";
         string scheduleExample = command + " 3 2 12";
 
-        if (arguments.Length > 0 && !Whole(arguments[0], "an order", orderExample, out order, ref unreadable))
+        if (schedule.Length > 0 && !Whole(schedule[0], "an order", orderExample, out order, ref unreadable))
         {
             return unreadable;
         }
 
-        if (arguments.Length == 3 &&
-            (!Whole(arguments[1], "an exponent", scheduleExample, out first, ref unreadable) ||
-             !Whole(arguments[2], "an exponent", scheduleExample, out last, ref unreadable)))
+        if (schedule.Length == 3 &&
+            (!Whole(schedule[1], "an exponent", scheduleExample, out first, ref unreadable) ||
+             !Whole(schedule[2], "an exponent", scheduleExample, out last, ref unreadable)))
         {
             return unreadable;
         }
@@ -463,9 +476,14 @@ internal static class SurvivorRun
             return refusal;
         }
 
-        request = new SurvivorRequest(order, first, last, mode);
+        request = new SurvivorRequest(order, first, last, mode, walk);
         return null;
     }
+
+    /// <summary>The walk words as a refusal lists them: <c>'farey' (the default) or 'denominator'</c>.</summary>
+    private static string WalkWords() =>
+        string.Join(" or ", SurvivorWalkChoice.All.Select(choice =>
+            "'" + choice.Argument + "'" + (choice.IsDefault ? " (the default)" : "")));
 
     /// <summary>The reason this order will not be run, or null when it will.</summary>
     /// <param name="order">The requested order.</param>
@@ -499,9 +517,11 @@ internal static class SurvivorRun
             : null;
 
     /// <summary>The reason this control cannot find its own answer, or null when it can.</summary>
-    /// <param name="order">The requested order.</param>
+    /// <param name="request">
+    /// What was asked for: the order, and the command and walk to show in the invocation that
+    /// would reach.
+    /// </param>
     /// <param name="denominatorBound">The bound the run derived.</param>
-    /// <param name="mode">Which command to show as the invocation that would reach.</param>
     /// <returns>The refusal, or null - always null for an odd order.</returns>
     /// <remarks>
     /// <para>
@@ -532,19 +552,20 @@ internal static class SurvivorRun
     /// fact about the answer, read off <see cref="EvenZetaRatio.Of"/>, and decides nothing.
     /// </para>
     /// <para>
-    /// A pure function of two values, decidable before any search: the answer comes from
+    /// A pure function of its arguments, decidable before any search: the answer comes from
     /// <see cref="EvenZetaRatio"/> and <c>Q</c> from the enclosures the pipeline has already
-    /// realised. It sits beside <see cref="Refuse"/> in <see cref="Run"/> and goes first, since a
-    /// run that cannot find its answer should not be priced before it is turned down.
+    /// realised. It is asked in <see cref="Run"/> before either walk's guard, since a run that
+    /// cannot find its answer should not be priced before it is turned down - and reachability is
+    /// a property of the bound, the same under every walk.
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="denominatorBound"/> is negative and the order is even - refused by
     /// <see cref="SurvivorSearch.IsReachable"/>, which owns what a valid bound is.
     /// </exception>
-    public static string? RefuseUnreachableControl(int order, BigInteger denominatorBound, SurvivorMode mode)
+    public static string? RefuseUnreachableControl(SurvivorRequest request, BigInteger denominatorBound)
     {
-        string command = CommandFor(mode);
+        int order = request.Order;
 
         if (!EvenZetaRatio.IsKnown(order))
         {
@@ -565,7 +586,7 @@ internal static class SurvivorRun
                 $"               that direction\n" +
                 $"Raise the LAST exponent to at least {ExponentReaching(order)}: that is the claim knob, and here " +
                 $"the claim\n" +
-                $"is what is short. '{command} {order} {DefaultFirstExponent} {ExponentReaching(order)}' derives a Q " +
+                $"is what is short. '{request.Invocation(DefaultFirstExponent, ExponentReaching(order))}' derives a Q " +
                 $"that reaches {answer.Denominator}.\n" +
                 $"An odd order is not checked this way and cannot be: nobody knows a denominator to\n" +
                 $"compare against, which is the question this bench exists to ask.")
@@ -787,7 +808,7 @@ internal static class SurvivorRun
     }
 
     /// <summary>The reason a capped control cannot find its own answer, or null when it can.</summary>
-    /// <param name="order">The requested order.</param>
+    /// <param name="request">What was asked for: the order, and the walk whose budget capped it.</param>
     /// <param name="bound">Where the run's bound came from.</param>
     /// <returns>
     /// The refusal, or null - always null for an odd order, and for a bound nothing capped. Where
@@ -821,13 +842,20 @@ internal static class SurvivorRun
     /// <see cref="Afford"/> caps.
     /// </para>
     /// <para>
+    /// <b>It names the walk that is not capped.</b> Only <see cref="DenominatorWalk"/>'s time
+    /// budget caps a bound; <see cref="FareyWalk"/> walks to the derived one, which reaches here by
+    /// the check above. So the message offers that invocation - the one change that does help.
+    /// </para>
+    /// <para>
     /// Both decisions are <see cref="SurvivorSearch.IsReachable"/>'s, for the reason
     /// <see cref="RefuseUnreachableControl"/> gives: the rule is implemented once, in
     /// <c>RationalApproximation</c>, and the denominator the message quotes only reports it.
     /// </para>
     /// </remarks>
-    public static string? RefuseUnaffordableControl(int order, SurvivorBound bound)
+    public static string? RefuseUnaffordableControl(SurvivorRequest request, SurvivorBound bound)
     {
+        int order = request.Order;
+
         if (!EvenZetaRatio.IsKnown(order) || !bound.IsCapped)
         {
             return null;
@@ -837,7 +865,7 @@ internal static class SurvivorRun
 
         if (!SurvivorSearch.IsReachable(answer, bound.Derived))
         {
-            return RefuseUnreachableControl(order, bound.Derived, SurvivorMode.Deep);
+            return RefuseUnreachableControl(request with { Mode = SurvivorMode.Deep }, bound.Derived);
         }
 
         return !SurvivorSearch.IsReachable(answer, bound.Q)
@@ -853,7 +881,9 @@ internal static class SurvivorRun
                 $"               direction\n" +
                 $"No schedule change helps. A deep walk costs Q denominators whatever the FIRST exponent\n" +
                 $"is, and the LAST only raises the Q the precision supports, which is not what is short.\n" +
-                $"The price is this machine's, measured before the walk; a faster one reaches further.")
+                $"The price is this machine's, measured before the walk; a faster one reaches further.\n" +
+                $"Or walk with {SurvivorWalkChoice.Farey.Name}, which no budget caps: " +
+                $"'{(request with { Mode = SurvivorMode.Deep, Walk = SurvivorWalkChoice.Farey }).Invocation(request.FirstExponent, request.LastExponent)}'.")
             : null;
     }
 
@@ -1271,9 +1301,14 @@ internal static class SurvivorRun
     /// a bound whose predecessor has already warmed the code.
     /// </param>
     /// <param name="mode">Which walk to time - the production one, at a smaller bound.</param>
+    /// <remarks>
+    /// Always <see cref="DenominatorWalk"/>, since this is its cost model and no other walk is
+    /// priced by time; it walks under <see cref="SurvivorLimit.None"/> for the same reason.
+    /// </remarks>
     private static BigRational Fastest(
         IReadOnlyList<Approximation> enclosures, BigInteger bound, double atLeastSeconds, SurvivorMode mode)
     {
+        SurvivorWalk timed = SurvivorWalkChoice.Denominator.Walk;
         long fastest = long.MaxValue;
         var spent = Stopwatch.StartNew();
         int pass = 0;
@@ -1282,8 +1317,8 @@ internal static class SurvivorRun
         {
             var clock = Stopwatch.StartNew();
             _ = mode == SurvivorMode.Deep
-                ? SurvivorReport.Deep(enclosures, new SurvivorBound(bound, null), TrackedCap, ReferenceWalk, SurvivorLimit.None)
-                : SurvivorReport.Of(enclosures, bound, TrackedCap, ReferenceWalk, SurvivorLimit.None);
+                ? SurvivorReport.Deep(enclosures, new SurvivorBound(bound, null), TrackedCap, timed, SurvivorLimit.None)
+                : SurvivorReport.Of(enclosures, bound, TrackedCap, timed, SurvivorLimit.None);
             clock.Stop();
 
             fastest = Math.Min(fastest, clock.ElapsedTicks);
@@ -1366,9 +1401,7 @@ internal static class SurvivorRun
         return new ChartCaption(
             string.Create(CultureInfo.InvariantCulture, $"pi^{request.Order} / zeta({request.Order})"),
             string.Create(CultureInfo.InvariantCulture, $"MachinPi, EulerMaclaurinZeta({request.Order})"),
-            request.Mode == SurvivorMode.Deep
-                ? "SurvivorSearch, once over every enclosure (deep)"
-                : "SurvivorSearch",
+            request.Walk.Name,
             string.Create(CultureInfo.InvariantCulture,
                 $"{request.ScheduleLabel}, {run.Iterations.Count} targets, " +
                 $"{enclosures.Count} distinct enclosures"),
@@ -1396,13 +1429,13 @@ internal static class SurvivorRun
             $"pi^{order} / zeta({order}) - the survivor set, which is what section 2 step 6 says a run reports."));
         notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  providers   MachinPi, EulerMaclaurinZeta({order})   search  SurvivorSearch"));
+            $"  providers   MachinPi, EulerMaclaurinZeta({order})   walk  {request.Walk.Name}"));
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  schedule    {request.ScheduleLabel}, {columns} targets"));
 
         if (request.Mode == SurvivorMode.Deep)
         {
-            notes.WriteLine("  walk        deep - ONE pass over every enclosure. The same survivor set as");
+            notes.WriteLine("  mode        deep - ONE pass over every enclosure. The same survivor set as");
             notes.WriteLine("              survivors, without the collapse chart or the nearest excluded,");
             notes.WriteLine("              traded for reach.");
         }
@@ -1418,73 +1451,35 @@ internal static class SurvivorRun
         notes.WriteLine("running the pipeline.");
     }
 
+    /// <summary>Writes what the walk is about to cost and why, once its guard has let it through.</summary>
+    /// <remarks>
+    /// The first two lines are every run's; the rest are the admitted walk's own, built from its
+    /// value by <see cref="AdmittedWalk.Sizing"/>, so this prints them without asking which walk
+    /// wrote them.
+    /// </remarks>
     private static void Sizing(
         TextWriter notes,
         RatioRun run,
         IReadOnlyList<Approximation> enclosures,
-        SurvivorBound bound,
-        WalkPrice price,
+        AdmittedWalk admitted,
         SurvivorMode mode)
     {
-        WalkSize size = Size(enclosures, bound.Q, mode);
-
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  {run.Iterations.Count} targets realised {enclosures.Count} distinct enclosures; " +
             $"repeats are dropped, since intersecting an enclosure with itself refutes nothing."));
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  Q = {bound.Derived}, derived as floor(eps^(-1/2)) from the final half-width " +
+            $"  Q = {admitted.Bound.Derived}, derived as floor(eps^(-1/2)) from the final half-width " +
             $"{Presentation.Magnitude(enclosures[^1].MaxError)} - the depth a generic sweep reaches."));
 
-        if (mode == SurvivorMode.Deep)
+        foreach (string line in admitted.Sizing(enclosures, mode))
         {
-            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"  a sample of the deep walk itself to q = {price.SmallSample} priced a denominator at " +
-                $"{Presentation.Roughly(price.PerDenominator * Million)} microseconds -"));
-            notes.WriteLine("  one price, since there is almost nothing else in it.");
-            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"  Q = {(bound.Affordable is { } affordable ? affordable.ToString(CultureInfo.InvariantCulture) : "unbounded")}" +
-                $" is what the budget of {BudgetSeconds} s affords at that price, so this run walks to"));
-            notes.WriteLine(bound.IsCapped
-                ? string.Create(CultureInfo.InvariantCulture,
-                    $"  Q = {bound.Q} - CAPPED below the derived bound. Ruling 5: claiming less than the precision")
-                : string.Create(CultureInfo.InvariantCulture,
-                    $"  Q = {bound.Q}, the derived bound, which the budget affords."));
-
-            if (bound.IsCapped)
-            {
-                notes.WriteLine("  supports is always sound, and the epilogue says what the cap does to the reading.");
-            }
-
-            WalkSize chart = Size(enclosures, bound.Q, SurvivorMode.Chart);
-
-            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"  the walk is ONE pass over all {enclosures.Count} enclosures, seeded from the narrowest: " +
-                $"{size.Denominators:N0} denominators"));
-            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"  and {size.Candidates:N0} candidates, where the chart would walk {chart.Denominators:N0} " +
-                $"and {chart.Candidates:N0}."));
-            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"  It predicts {Presentation.Roughly(price.Seconds(size))} s. The price is this machine's; " +
-                $"the answer is not."));
-            notes.WriteLine();
-            notes.WriteLine("intersecting, every enclosure at once:");
-            return;
+            notes.WriteLine(line);
         }
 
-        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  the walk is {size.Denominators:N0} denominators and {size.Candidates:N0} candidates " +
-            $"over all {enclosures.Count} prefixes,"));
-        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  of which the opening step is {Estimate([enclosures[0]], bound.Q, SurvivorMode.Chart):N0}."));
-        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  samples to q = {price.SmallSample} and q = {price.LargeSample} priced a denominator at " +
-            $"{Presentation.Roughly(price.PerDenominator * Million)} microseconds"));
-        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"  and a candidate at {Presentation.Roughly(price.PerCandidate * Million)}, so the walk " +
-            $"predicts {Presentation.Roughly(price.Seconds(size))} s against a budget of {BudgetSeconds}."));
-        notes.WriteLine("  The price is this machine's; the answer is not.");
         notes.WriteLine();
-        notes.WriteLine("intersecting, one enclosure at a time:");
+        notes.WriteLine(mode == SurvivorMode.Deep
+            ? "intersecting, every enclosure at once:"
+            : "intersecting, one enclosure at a time:");
     }
 
     /// <summary>What a generic target of this precision would have left standing anyway.</summary>
@@ -1535,29 +1530,36 @@ internal static class SurvivorRun
 
     /// <summary>What the run established, what it did not, and how well its cost was predicted.</summary>
     /// <remarks>
-    /// The predicted-to-realised line is printed for both walks so the two cost models can be read
-    /// side by side from real runs. The chart's prices every prefix at the widest enclosure's
+    /// <para>
+    /// Every run prints its guard's prediction beside what happened, from
+    /// <see cref="AdmittedWalk.Reading"/>, so each cost model can be read against real runs.
+    /// </para>
+    /// <para>
+    /// Under <see cref="DenominatorWalk"/> it is predicted seconds against the walk's, for the
+    /// chart and the deep walk alike. The chart's prices every prefix at the widest enclosure's
     /// endpoints and has been measured anywhere from 0.6 to 1.2 of its walk; the deep walk's is
     /// sampled from the walk itself, and ran 0.89 to 0.94 across four schedules on 2026-09-10.
+    /// Under <see cref="FareyWalk"/> it is expected survivors against those found.
+    /// </para>
     /// </remarks>
     private static void Epilogue(
         TextWriter notes,
         SurvivorReport report,
-        int order,
+        SurvivorRequest request,
+        AdmittedWalk admitted,
         double seconds,
-        BigRational walkSeconds,
-        BigRational predictedSeconds)
+        BigRational walkSeconds)
     {
+        int order = request.Order;
+
         notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"{report.Enclosures.Count} enclosures, {seconds:F2} s, of which the walk the budget " +
-            $"prices was {Presentation.ToDecimal(walkSeconds, 2)} s. The SVG is on stdout - redirect it."));
+            $"{report.Enclosures.Count} enclosures, {seconds:F2} s, of which the walk was " +
+            $"{Presentation.ToDecimal(walkSeconds, 2)} s. The SVG is on stdout - redirect it."));
 
-        if (walkSeconds.Sign > 0)
+        foreach (string line in admitted.Reading(report, request.Mode, walkSeconds))
         {
-            notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"The guard predicted {Presentation.Roughly(predictedSeconds)} s for that walk: " +
-                $"{Presentation.Roughly(predictedSeconds / walkSeconds)} of what it took."));
+            notes.WriteLine(line);
         }
 
         notes.WriteLine();
@@ -1607,7 +1609,8 @@ internal static class SurvivorRun
         }
 
         notes.WriteLine();
-        notes.WriteLine("  The axis is denominators. That is SurvivorSearch's own axis - it takes a");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  The axis is denominators. That is {request.Walk.Name}'s own axis - it takes a"));
 
         if (report.Bound.IsCapped)
         {

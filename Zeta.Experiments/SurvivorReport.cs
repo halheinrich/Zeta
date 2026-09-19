@@ -127,6 +127,7 @@ internal sealed class SurvivorReport
         Approximation[] enclosures,
         long[] counts,
         long survivorCount,
+        long survivorsWalked,
         BigRational[] survivors,
         BigRational[] tracked,
         SurvivorBound bound,
@@ -138,6 +139,7 @@ internal sealed class SurvivorReport
         this.tracked = tracked;
         this.omitted = omitted;
         SurvivorCount = survivorCount;
+        SurvivorsWalked = survivorsWalked;
         Bound = bound;
     }
 
@@ -213,6 +215,15 @@ internal sealed class SurvivorReport
     /// from. For a chart walk the two agree: this is the last entry.
     /// </remarks>
     public long SurvivorCount { get; }
+
+    /// <summary>Gets how many survivors the walks produced between them, which is what a survivor limit counts.</summary>
+    /// <remarks>
+    /// The sum of <see cref="Counts"/> for a chart walk, which walks every prefix afresh, and
+    /// <see cref="SurvivorCount"/> for a deep one, which walks once. It is the count
+    /// <see cref="SurvivorLimit"/> is checked against as the walks run, stated once so the figure
+    /// a report prints beside the guard's expectation is the figure the guard enforced.
+    /// </remarks>
+    public long SurvivorsWalked { get; }
 
     /// <summary>Gets the candidates whose distances are worth plotting: the survivors, and the nearest excluded.</summary>
     /// <remarks>
@@ -468,10 +479,12 @@ internal sealed class SurvivorReport
     /// <para>
     /// <b>Each prefix is enumerated afresh rather than filtered from the last.</b> The obvious
     /// alternative - materialise the first enclosure's survivors and whittle them down - holds the
-    /// largest set this report ever sees, which for a derived bound runs to millions.
-    /// <see cref="SurvivorSearch"/> seeds each walk with the narrowest enclosure of the prefix it
-    /// is given, so every step after the first is far cheaper than the first and the whole loop
-    /// costs about twice what its opening step does.
+    /// largest set this report ever sees, which for a derived bound runs to millions. Under
+    /// <see cref="DenominatorWalk"/>, which seeds each walk with the narrowest enclosure of the
+    /// prefix it is given, every step after the first is far cheaper than the first and the whole
+    /// loop costs about twice what its opening step does; under <see cref="FareyWalk"/> each
+    /// prefix costs about <c>log Q</c> plus its own survivors, and the widest prefix holds most of
+    /// them, so the same shape holds for a different reason.
     /// </para>
     /// <para>
     /// <b>The limit is checked as each survivor arrives</b>, so a refused walk stops the moment it
@@ -533,6 +546,7 @@ internal sealed class SurvivorReport
             [.. enclosures],
             counts,
             counts[^1],
+            walked,
             [.. standing],
             Follow(standing, nearest, trackedCap),
             new SurvivorBound(denominatorBound, null),
@@ -564,9 +578,9 @@ internal sealed class SurvivorReport
     /// <remarks>
     /// <para>
     /// <b>The same survivor set as <see cref="Of"/>, element for element</b> - ruling 4 on
-    /// <c>halheinrich/Math#64</c>. <see cref="SurvivorSearch"/> intersects every enclosure it is
-    /// given and seeds from the narrowest, so this one call returns exactly what <see cref="Of"/>'s
-    /// last prefix returns. Nothing is weakened and no searcher is written: it is a call site
+    /// <c>halheinrich/Math#64</c>. Every <see cref="SurvivorSearch"/> returns the rationals that
+    /// every enclosure it is given contains, whichever walk finds them, so this one call returns
+    /// exactly what <see cref="Of"/>'s last prefix returns. Nothing is weakened and no searcher is written: it is a call site
     /// making one call where the chart makes one per prefix.
     /// </para>
     /// <para>
@@ -578,9 +592,11 @@ internal sealed class SurvivorReport
     /// standing" - a separate question, left for its own issue.
     /// </para>
     /// <para>
-    /// The walk is the final prefix, seeded from the narrowest enclosure, so at a derived bound its
-    /// inner loop holds about one candidate and the whole cost is stepping the denominators.
-    /// <see cref="SurvivorRun.Size"/> prices it that way.
+    /// The walk is the final prefix. Under <see cref="DenominatorWalk"/>, seeded from the narrowest
+    /// enclosure, at a derived bound its inner loop holds about one candidate and the whole cost is
+    /// stepping the denominators, which is how <see cref="SurvivorRun.Size"/> prices it. Under
+    /// <see cref="FareyWalk"/> it costs about <c>log Q</c> plus its survivors, which at a derived
+    /// bound are expected to number about 0.61.
     /// </para>
     /// </remarks>
     public static SurvivorOutcome Deep(
@@ -611,6 +627,7 @@ internal sealed class SurvivorReport
         return SurvivorOutcome.Completed(new SurvivorReport(
             [.. enclosures],
             [],
+            count,
             count,
             [.. standing],
             Follow(standing, [], trackedCap),

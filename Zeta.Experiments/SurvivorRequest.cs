@@ -6,9 +6,9 @@ namespace HalHeinrich.Numerics.Experiments;
 /// <remarks>
 /// <para>
 /// <b>Both modes report the same survivor set</b>, and that is the whole of why the second one is
-/// allowed to exist. <see cref="SurvivorSearch"/> intersects every enclosure it is handed and seeds
-/// its walk from the narrowest, so one walk over all of them returns exactly what the chart's last
-/// prefix returns. What differs is everything else the chart draws - ruling 4 on
+/// allowed to exist. Every <see cref="SurvivorSearch"/> returns the rationals that every enclosure
+/// it is handed contains, whichever walk finds them, so one walk over all of them returns exactly
+/// what the chart's last prefix returns. What differs is everything else the chart draws - ruling 4 on
 /// <c>halheinrich/Math#64</c> - and <see cref="SurvivorReport.Omitted"/> says which panels.
 /// </para>
 /// <para>
@@ -35,12 +35,13 @@ internal enum SurvivorMode
 
 /// <summary>
 /// What one <c>survivors</c> or <c>deep</c> invocation asks for: an order of zeta, the two ends of
-/// the schedule the run is driven to, and how the enclosures are walked.
+/// the schedule the run is driven to, how the enclosures are walked, and which walk does it.
 /// </summary>
 /// <param name="Order">The order of zeta, as in <c>pi^n / zeta(n)</c>.</param>
 /// <param name="FirstExponent">The first target's exponent, as <c>10^-firstExponent</c>.</param>
 /// <param name="LastExponent">The last target's exponent, as <c>10^-lastExponent</c>.</param>
 /// <param name="Mode">Which command it came from, and so how the enclosures are walked.</param>
+/// <param name="Walk">Which survivor walk runs, and so which guard prices it.</param>
 /// <remarks>
 /// <para>
 /// <b>This validates nothing, and that is the same decision <see cref="TargetSchedule"/> records
@@ -61,10 +62,25 @@ internal enum SurvivorMode
 /// </para>
 /// </remarks>
 internal readonly record struct SurvivorRequest(
-    int Order, int FirstExponent, int LastExponent, SurvivorMode Mode)
+    int Order, int FirstExponent, int LastExponent, SurvivorMode Mode, SurvivorWalkChoice Walk)
 {
     /// <summary>The command this request came from, as a caller types it.</summary>
     public string Command => SurvivorRun.CommandFor(Mode);
+
+    /// <summary>The invocation that would repeat this request with the schedule's ends moved.</summary>
+    /// <param name="firstExponent">The first end to show.</param>
+    /// <param name="lastExponent">The last end to show.</param>
+    /// <returns>As a caller types it: <c>deep 18 2 11</c>, or <c>deep 18 2 11 denominator</c>.</returns>
+    /// <remarks>
+    /// <b>Every refusal that offers something to copy renders it here</b>, so the walk the run
+    /// used is in the copy whenever it is not the default - a refusal under
+    /// <see cref="DenominatorWalk"/> that offered an invocation without the word would, pasted,
+    /// run the other walk under the other guard. The default walk is left out so the invocation
+    /// is the shortest that means the same thing.
+    /// </remarks>
+    public string Invocation(int firstExponent, int lastExponent) =>
+        string.Create(CultureInfo.InvariantCulture, $"{Command} {Order} {firstExponent} {lastExponent}") +
+        (Walk.IsDefault ? "" : " " + Walk.Argument);
 
     /// <summary>The schedule as every report here names it: <c>1e-2 .. 1e-8</c>.</summary>
     /// <remarks>

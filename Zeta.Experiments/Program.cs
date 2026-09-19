@@ -144,6 +144,12 @@ internal static class Program
         notes.WriteLine("                    survivors walks once per prefix, so the collapse and the");
         notes.WriteLine("                    nearest excluded are not drawn - and the output says so.");
         notes.WriteLine("                    Same arguments, same defaults.");
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {"... <walk>",-17}  either command takes a survivor walk LAST: '" +
+            $"{SurvivorWalkChoice.Farey.Argument}' or '{SurvivorWalkChoice.Denominator.Argument}', as in"));
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"                    '{SurvivorsCommand} 3 2 12 {SurvivorWalkChoice.Denominator.Argument}'. " +
+            $"{SurvivorWalkChoice.Default.Name} is the default."));
         notes.WriteLine();
         notes.WriteLine("what they are for");
         notes.WriteLine();
