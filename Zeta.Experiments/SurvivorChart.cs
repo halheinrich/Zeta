@@ -14,6 +14,7 @@ namespace HalHeinrich.Numerics.Experiments;
 /// <c>DenominatorWalk</c>. Whether it walked once or per prefix is the report's to say, and the
 /// heading reads it there.
 /// </param>
+/// <param name="Guard">What guarded the walk: its survivor limit, or its time budget.</param>
 /// <param name="Schedule">The schedule and how many distinct enclosures it realised.</param>
 /// <param name="BoundDerivation">Where <c>Q</c> came from, in one line.</param>
 /// <remarks>
@@ -26,6 +27,7 @@ internal sealed record ChartCaption(
     string Title,
     string Providers,
     string Walk,
+    string Guard,
     string Schedule,
     string BoundDerivation);
 
@@ -173,7 +175,7 @@ internal static class SurvivorChart
         Svg.Text(svg, PlotLeft, 34, caption.Title + " - what the enclosures leave standing", "h1");
 
         Svg.Text(svg, PlotLeft, 56, "providers  " + caption.Providers + "     walk  " + caption.Walk +
-            (report.Omitted.Count > 0 ? ", once over every enclosure (deep)" : ""), "body");
+            (report.Omitted.Count > 0 ? ", once over every enclosure (deep)" : "") + "     guard  " + caption.Guard, "body");
         Svg.Text(svg, PlotLeft, 73, "schedule   " + caption.Schedule, "body");
         Svg.Text(svg, PlotLeft, 90, "bound      " + caption.BoundDerivation, "body");
 

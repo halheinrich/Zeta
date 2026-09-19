@@ -26,7 +26,7 @@ public sealed class SurvivorWalkChoiceTests
     private static Approximation At(BigRational value, BigInteger errorNumerator, BigInteger errorDenominator) =>
         Approximation.Create(value, new BigRational(errorNumerator, errorDenominator));
 
-    private static SurvivorRequest Request(SurvivorMode mode, SurvivorWalkChoice walk) => new(3, 2, 12, mode, walk);
+    private static SurvivorRequest Request(SurvivorMode mode, SurvivorWalkChoice walk) => new(3, 2, 12, mode, walk, walk.DefaultLimit);
 
     // ---------- the choices ----------
 
@@ -109,7 +109,7 @@ public sealed class SurvivorWalkChoiceTests
         {
             Assert.Null(SurvivorRun.Interpret(arguments, mode, out SurvivorRequest request));
 
-            Assert.Equal(new SurvivorRequest(order, first, last, mode, SurvivorWalkChoice.Denominator), request);
+            Assert.Equal(new SurvivorRequest(order, first, last, mode, SurvivorWalkChoice.Denominator, SurvivorWalkChoice.Denominator.DefaultLimit), request);
         }
     }
 
@@ -118,19 +118,30 @@ public sealed class SurvivorWalkChoiceTests
     {
         Assert.Null(SurvivorRun.Interpret(["3", "farey"], SurvivorMode.Deep, out SurvivorRequest request));
 
-        Assert.Equal(new SurvivorRequest(3, 2, 8, SurvivorMode.Deep, SurvivorWalkChoice.Farey), request);
+        Assert.Equal(new SurvivorRequest(3, 2, 8, SurvivorMode.Deep, SurvivorWalkChoice.Farey, SurvivorWalkChoice.Farey.DefaultLimit), request);
     }
 
     [Theory]
-    [InlineData("denominator 3")]
     [InlineData("3 farey 2 12")]
-    [InlineData("farey denominator")]
+    [InlineData("farey 3 2")]
     public void Interpret_RefusesAWalkAnywhereButLastAndSaysWhereItGoes(string typed)
     {
         string? refusal = SurvivorRun.Interpret(typed.Split(' '), SurvivorMode.Chart, out SurvivorRequest request);
 
         Assert.NotNull(refusal);
         Assert.Contains("names a walk, and the walk goes last", refusal, StringComparison.Ordinal);
+        Assert.Equal(default, request);
+    }
+
+    [Theory]
+    [InlineData("farey denominator")]
+    [InlineData("3 denominator 2 12 farey")]
+    public void Interpret_RefusesTwoWalks(string typed)
+    {
+        string? refusal = SurvivorRun.Interpret(typed.Split(' '), SurvivorMode.Chart, out SurvivorRequest request);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("each name a walk, and a run takes one", refusal, StringComparison.Ordinal);
         Assert.Equal(default, request);
     }
 
@@ -169,7 +180,7 @@ public sealed class SurvivorWalkChoiceTests
     public void RefuseUnreachableControl_OffersAnInvocationThatRepeatsTheSameWalk()
     {
         // Pasted, an invocation without the word would run the other walk under the other guard.
-        var asked = new SurvivorRequest(18, 2, 8, SurvivorMode.Deep, SurvivorWalkChoice.Denominator);
+        var asked = new SurvivorRequest(18, 2, 8, SurvivorMode.Deep, SurvivorWalkChoice.Denominator, SurvivorWalkChoice.Denominator.DefaultLimit);
 
         string? refusal = SurvivorRun.RefuseUnreachableControl(asked, 16_384);
 
@@ -181,7 +192,7 @@ public sealed class SurvivorWalkChoiceTests
     [Fact]
     public void RefuseUnaffordableControl_OffersTheWalkNoBudgetCaps()
     {
-        var asked = new SurvivorRequest(18, 5, 11, SurvivorMode.Deep, SurvivorWalkChoice.Denominator);
+        var asked = new SurvivorRequest(18, 5, 11, SurvivorMode.Deep, SurvivorWalkChoice.Denominator, SurvivorWalkChoice.Denominator.DefaultLimit);
 
         string? refusal = SurvivorRun.RefuseUnaffordableControl(asked, new SurvivorBound(100_000, 43_866));
 
@@ -369,8 +380,8 @@ public sealed class SurvivorWalkChoiceTests
             List<string> drawnChart = Texts(Draw(chart, walk));
             List<string> drawnDeep = Texts(Draw(deep, walk));
 
-            Assert.Contains(drawnChart, line => line.EndsWith("     walk  " + walk.Name, StringComparison.Ordinal));
-            Assert.Contains(drawnDeep, line => line.EndsWith("     walk  " + walk.Name + ", once over every enclosure (deep)", StringComparison.Ordinal));
+            Assert.Contains(drawnChart, line => line.Contains("     walk  " + walk.Name + "     guard  ", StringComparison.Ordinal));
+            Assert.Contains(drawnDeep, line => line.Contains("     walk  " + walk.Name + ", once over every enclosure (deep)     guard  ", StringComparison.Ordinal));
             Assert.Contains(drawnChart, line => line.Contains("which is " + walk.Name + "'s own axis", StringComparison.Ordinal));
             Assert.DoesNotContain(drawnChart, line => line.Contains("SurvivorSearch", StringComparison.Ordinal));
         }
@@ -403,11 +414,190 @@ public sealed class SurvivorWalkChoiceTests
         Assert.Equal(deep.SurvivorCount, deep.SurvivorsWalked);
     }
 
+    // ---------- the survivor limit, which the user chooses ----------
+
+    [Theory]
+    [InlineData("3 2 12 farey 500000000", 3, 2, 12, 500_000_000)]
+    [InlineData("farey 1", 2, 2, 8, 1)]
+    [InlineData("3 FAREY 20", 3, 2, 8, 20)]
+    [InlineData("farey 9223372036854775807", 2, 2, 8, long.MaxValue)]
+    public void Interpret_TakesALimitAfterFarey(string typed, int order, int first, int last, long limit)
+    {
+        foreach (SurvivorMode mode in new[] { SurvivorMode.Chart, SurvivorMode.Deep })
+        {
+            Assert.Null(SurvivorRun.Interpret(typed.Split(' '), mode, out SurvivorRequest request));
+
+            Assert.Equal(new SurvivorRequest(order, first, last, mode, SurvivorWalkChoice.Farey, SurvivorLimit.At(limit)), request);
+        }
+    }
+
+    [Fact]
+    public void Interpret_DefaultsTheLimitToOneHundredMillionAndDenominatorToNone()
+    {
+        // Literals: the default is a policy with a recorded basis, and moving it should redden.
+        Assert.Null(SurvivorRun.Interpret(["3"], SurvivorMode.Chart, out SurvivorRequest farey));
+        Assert.Null(SurvivorRun.Interpret(["3", "denominator"], SurvivorMode.Chart, out SurvivorRequest reference));
+
+        Assert.Equal(SurvivorLimit.At(100_000_000), farey.Limit);
+        Assert.Equal(SurvivorLimit.None, reference.Limit);
+    }
+
+    [Fact]
+    public void Interpret_RefusesALimitBesideDenominatorAndOffersTheOrderReading()
+    {
+        // The reference walk is bounded by time, so a limit given beside it would be ignored -
+        // which would mislead whoever set it. The same slip may be a walk put before an order.
+        string? refusal = SurvivorRun.Interpret(["denominator", "5"], SurvivorMode.Chart, out SurvivorRequest request);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("'5' after 'denominator' would be a survivor limit, and DenominatorWalk takes none", refusal, StringComparison.Ordinal);
+        Assert.Contains("'survivors 5 denominator'", refusal, StringComparison.Ordinal);
+        Assert.Equal(default, request);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-5")]
+    [InlineData("+5")]
+    [InlineData("1e8")]
+    [InlineData("1.5")]
+    [InlineData("1,000")]
+    [InlineData("9223372036854775808")]
+    [InlineData("five")]
+    public void Interpret_RefusesALimitThatIsNotAnExactPositiveInteger(string limit)
+    {
+        // Digits alone: nothing that parses may mean anything but the digits it shows, and no
+        // floating point stands between the argument and the count - 1e8 is refused, not read.
+        string? refusal = SurvivorRun.Interpret(["3", "2", "12", "farey", limit], SurvivorMode.Chart, out SurvivorRequest request);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("'" + limit + "' is not a survivor limit", refusal, StringComparison.Ordinal);
+        Assert.Equal(default, request);
+    }
+
+    [Fact]
+    public void Interpret_RefusesAnythingAfterTheLimit()
+    {
+        string? refusal = SurvivorRun.Interpret(["3", "2", "12", "farey", "5", "6"], SurvivorMode.Chart, out _);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("a survivor limit and nothing else", refusal, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Invocation_CarriesALimitOnlyWhenItIsNotTheDefault()
+    {
+        SurvivorRequest request = Request(SurvivorMode.Chart, SurvivorWalkChoice.Farey);
+
+        Assert.Equal("survivors 3 2 12", request.Invocation(2, 12));
+        Assert.Equal("survivors 3 2 12 farey 5", (request with { Limit = SurvivorLimit.At(5) }).Invocation(2, 12));
+    }
+
+    [Fact]
+    public void WithWalk_TakesTheNewWalksDefaultLimit()
+    {
+        // A plain with { Walk = ... } would carry the old walk's limit across, and the invocation
+        // would then offer 'denominator 5' - a limit the reference walk does not take.
+        SurvivorRequest limited = Request(SurvivorMode.Chart, SurvivorWalkChoice.Farey) with { Limit = SurvivorLimit.At(5) };
+
+        SurvivorRequest reference = limited.WithWalk(SurvivorWalkChoice.Denominator);
+
+        Assert.Equal(SurvivorLimit.None, reference.Limit);
+        Assert.Equal("survivors 3 2 12 denominator", reference.Invocation(2, 12));
+        Assert.Equal(SurvivorLimit.At(100_000_000), reference.WithWalk(SurvivorWalkChoice.Farey).Limit);
+    }
+
+    [Fact]
+    public void GuardLabel_NamesEachWalksOwnGuard()
+    {
+        SurvivorRequest farey = Request(SurvivorMode.Chart, SurvivorWalkChoice.Farey);
+
+        Assert.Equal("survivor limit 100,000,000", farey.GuardLabel);
+        Assert.Equal("survivor limit 5", (farey with { Limit = SurvivorLimit.At(5) }).GuardLabel);
+        Assert.Equal("time budget 300 s", Request(SurvivorMode.Chart, SurvivorWalkChoice.Denominator).GuardLabel);
+    }
+
+    [Fact]
+    public void Preamble_ShowsTheLimitWhereverTheWalkIsShown()
+    {
+        using var notes = new StringWriter(CultureInfo.InvariantCulture);
+
+        SurvivorRun.Preamble(notes, Request(SurvivorMode.Deep, SurvivorWalkChoice.Farey) with { Limit = SurvivorLimit.At(5) }, 11);
+
+        Assert.Contains("  guard       survivor limit 5", notes.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Chart_ShowsTheGuardBesideTheWalk()
+    {
+        Approximation[] enclosures = [At(BigRational.FromInteger(6), 1, 2), At(BigRational.FromInteger(6), 1, 4)];
+        SurvivorReport chart = SurvivorReport.Of(enclosures, 2, 4, SurvivorWalkChoice.Farey.Walk, SurvivorLimit.None).Report;
+
+        using var document = new StringWriter(CultureInfo.InvariantCulture);
+        SurvivorChart.Write(document, chart, new ChartCaption(
+            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", "FareyWalk", "survivor limit 5", "1e-2 .. 1e-4", "Q = 2"));
+
+        Assert.Contains(Texts(document.ToString()), line => line.EndsWith("walk  FareyWalk     guard  survivor limit 5", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Admit_UnderFareyWalksUnderTheRequestsOwnLimit()
+    {
+        // 6 +- 1/100 at Q = 1,000 expects 6 * (1/100) * 10^6 / pi^2, about 6,079: admitted at the
+        // default, refused at 1,000, and the refusal suggests the smallest round limit above it.
+        Approximation[] enclosures = [At(BigRational.FromInteger(6), 1, 100)];
+        SurvivorRequest request = Request(SurvivorMode.Chart, SurvivorWalkChoice.Farey) with { Limit = SurvivorLimit.At(1_000) };
+
+        RefusedWalk refused = Assert.IsType<RefusedWalk>(SurvivorWalkChoice.Farey.Admit(enclosures, 1_000, request));
+
+        Assert.Contains("past the limit of 1,000.", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("'survivors 3 2 12 farey 10000'", refused.Message, StringComparison.Ordinal);
+        Assert.IsType<CountedWalk>(SurvivorWalkChoice.Farey.Admit(enclosures, 1_000, request with { Limit = SurvivorLimit.At(10_000) }));
+    }
+
+    [Fact]
+    public void Admit_RefusesARequestPairingAWalkWithALimitItDoesNotTake()
+    {
+        // No argument a caller can type builds either; Interpret refuses the one that would. Checked
+        // before anything is timed, so the reference walk's calibration never runs here.
+        Approximation[] enclosures = [At(BigRational.FromInteger(6), 1, 100)];
+        SurvivorRequest unlimitedFarey = Request(SurvivorMode.Chart, SurvivorWalkChoice.Farey) with { Limit = SurvivorLimit.None };
+        SurvivorRequest limitedReference = Request(SurvivorMode.Chart, SurvivorWalkChoice.Denominator) with { Limit = SurvivorLimit.At(5) };
+
+        Assert.Throws<ArgumentException>(() => SurvivorWalkChoice.Farey.Admit(enclosures, 1_000, unlimitedFarey));
+        Assert.Throws<ArgumentException>(() => SurvivorWalkChoice.Denominator.Admit(enclosures, 1_000, limitedReference));
+        Assert.Throws<ArgumentException>(
+            () => SurvivorWalkChoice.Farey.Admit(enclosures, 1_000, Request(SurvivorMode.Chart, SurvivorWalkChoice.Denominator)));
+    }
+
+    [Theory]
+    [InlineData(0, 1, 1)]
+    [InlineData(1, 1, 1)]
+    [InlineData(3, 2, 2)]
+    [InlineData(3, 1, 5)]
+    [InlineData(5, 1, 5)]
+    [InlineData(6, 1, 10)]
+    [InlineData(418_923_113, 1, 500_000_000)]
+    [InlineData(100_000_001, 1, 200_000_000)]
+    public void RoundLimitAtOrAbove_IsTheSmallestOneTwoOrFiveTimesAPowerOfTenThatAdmits(long numerator, long denominator, long expected) =>
+        Assert.Equal(expected, SurvivorCountGuard.RoundLimitAtOrAbove(Ratio(numerator, denominator)));
+
+    [Fact]
+    public void Describe_DuringTheWalkSaysWhereTheLimitIsSet()
+    {
+        SurvivorCountRefusal refusal = SurvivorCountRefusal.DuringTheWalk(
+            101, SurvivorLimit.At(100), 5_000, 7, 2, SurvivorMode.Chart);
+
+        string message = SurvivorCountGuard.Describe(refusal, Request(SurvivorMode.Chart, SurvivorWalkChoice.Farey));
+
+        Assert.Contains("Or raise the limit, which is the number after 'farey'", message, StringComparison.Ordinal);
+    }
+
     private static string Draw(SurvivorReport report, SurvivorWalkChoice walk)
     {
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(
-            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", walk.Name, "1e-2 .. 1e-4", "Q = 2"));
+            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", walk.Name, walk.DescribeGuard(walk.DefaultLimit), "1e-2 .. 1e-4", "Q = 2"));
 
         return document.ToString();
     }

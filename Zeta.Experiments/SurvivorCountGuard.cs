@@ -203,10 +203,61 @@ internal static class SurvivorCountGuard
             : "No schedule change helps a deep walk: its one walk expects about 0.61 at a derived Q\n" +
               "  whatever the precision, so passing the limit means the target sits among far more\n" +
               "  rationals than a generic one would.\n");
+        text.Append(LimitAdvice(refusal, request));
         text.Append(string.Create(CultureInfo.InvariantCulture,
             $"Or walk with {SurvivorWalkChoice.Denominator.Name}, which is guarded by time instead: " +
-            $"'{(request with { Walk = SurvivorWalkChoice.Denominator }).Invocation(request.FirstExponent, request.LastExponent)}'."));
+            $"'{request.WithWalk(SurvivorWalkChoice.Denominator).Invocation(request.FirstExponent, request.LastExponent)}'."));
 
         return text.ToString();
+    }
+
+    /// <summary>The smallest round limit - one, two or five times a power of ten - at or above a count.</summary>
+    /// <param name="count">The count to admit. Non-negative.</param>
+    /// <returns>The limit.</returns>
+    /// <remarks>
+    /// What a refusal suggests when it offers a higher limit: a figure a person would type, and
+    /// the smallest such figure that admits the expectation. Exact in integers; the ceiling of the
+    /// count is the least whole number of survivors that admits it.
+    /// </remarks>
+    public static BigInteger RoundLimitAtOrAbove(BigRational count)
+    {
+        // BigRational keeps a positive denominator, and a count is non-negative, so this is the ceiling.
+        BigInteger needed = BigInteger.Max(
+            BigInteger.One, (count.Numerator + count.Denominator - BigInteger.One) / count.Denominator);
+        BigInteger power = BigInteger.One;
+
+        while (true)
+        {
+            foreach (int mantissa in new[] { 1, 2, 5 })
+            {
+                BigInteger candidate = mantissa * power;
+
+                if (candidate >= needed)
+                {
+                    return candidate;
+                }
+            }
+
+            power *= 10;
+        }
+    }
+
+    /// <summary>The line offering a higher limit, with the invocation that sets one.</summary>
+    private static string LimitAdvice(SurvivorCountRefusal refusal, SurvivorRequest request)
+    {
+        if (refusal.Basis == SurvivorCountBasis.Found)
+        {
+            return string.Create(CultureInfo.InvariantCulture,
+                $"Or raise the limit, which is the number after '{request.Walk.Argument}': the walk passed " +
+                $"{refusal.Limit:N0}, and how far past is not known, since it stopped there.\n");
+        }
+
+        BigInteger suggested = RoundLimitAtOrAbove(refusal.Count);
+
+        return suggested > long.MaxValue
+            ? "No survivor limit a run can be given admits this; the count is past any a walk could finish.\n"
+            : string.Create(CultureInfo.InvariantCulture,
+                $"Or raise the limit, if the count is one you mean to pay for: " +
+                $"'{(request with { Limit = SurvivorLimit.At((long)suggested) }).Invocation(request.FirstExponent, request.LastExponent)}'.\n");
     }
 }

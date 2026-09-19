@@ -150,6 +150,11 @@ internal static class Program
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"                    '{SurvivorsCommand} 3 2 12 {SurvivorWalkChoice.Denominator.Argument}'. " +
             $"{SurvivorWalkChoice.Default.Name} is the default."));
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  {"... farey <n>",-17}  {SurvivorWalkChoice.Farey.Name} with a survivor limit of n, a whole number;"));
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"                    the default is {SurvivorCountGuard.DefaultLimit:N0}. " +
+            $"{SurvivorWalkChoice.Denominator.Name} takes none."));
         notes.WriteLine();
         notes.WriteLine("what they are for");
         notes.WriteLine();

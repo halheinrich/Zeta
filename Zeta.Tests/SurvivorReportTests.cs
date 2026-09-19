@@ -41,11 +41,11 @@ public sealed class SurvivorReportTests
 
     /// <summary>A request for this order at the default schedule and walk, as a refusal that quotes one reads it.</summary>
     private static SurvivorRequest Asked(int order, SurvivorMode mode) =>
-        new(order, SurvivorRun.DefaultFirstExponent, SurvivorRun.DefaultLastExponent, mode, SurvivorWalkChoice.Default);
+        new(order, SurvivorRun.DefaultFirstExponent, SurvivorRun.DefaultLastExponent, mode, SurvivorWalkChoice.Default, SurvivorWalkChoice.Default.DefaultLimit);
 
     /// <summary>A deep request under the reference walk, the only one whose budget caps a bound.</summary>
     private static SurvivorRequest AskedOfTheReference(int order) =>
-        Asked(order, SurvivorMode.Deep) with { Walk = SurvivorWalkChoice.Denominator };
+        Asked(order, SurvivorMode.Deep).WithWalk(SurvivorWalkChoice.Denominator);
 
     // ---------- the derived bound ----------
 
@@ -960,7 +960,7 @@ public sealed class SurvivorReportTests
         // moving the default a deliberate act that reddens something.
         Assert.Null(SurvivorRun.Interpret([], SurvivorMode.Chart, out SurvivorRequest request));
 
-        Assert.Equal(new SurvivorRequest(2, 2, 8, SurvivorMode.Chart, SurvivorWalkChoice.Farey), request);
+        Assert.Equal(new SurvivorRequest(2, 2, 8, SurvivorMode.Chart, SurvivorWalkChoice.Farey, SurvivorLimit.At(100_000_000)), request);
         Assert.Equal(TargetSchedule.Decades(2, 8), request.Schedule());
     }
 
@@ -980,7 +980,7 @@ public sealed class SurvivorReportTests
         // is driven to the targets that were asked for rather than to a constant pair.
         Assert.Null(SurvivorRun.Interpret(["3", "2", "12"], SurvivorMode.Chart, out SurvivorRequest request));
 
-        Assert.Equal(new SurvivorRequest(3, 2, 12, SurvivorMode.Chart, SurvivorWalkChoice.Default), request);
+        Assert.Equal(new SurvivorRequest(3, 2, 12, SurvivorMode.Chart, SurvivorWalkChoice.Default, SurvivorWalkChoice.Default.DefaultLimit), request);
         Assert.Equal(TargetSchedule.Decades(2, 12), request.Schedule());
         Assert.NotEqual(TargetSchedule.Decades(2, 8), request.Schedule());
     }
@@ -1049,7 +1049,7 @@ public sealed class SurvivorReportTests
 
     [Fact]
     public void ScheduleLabel_NamesBothEndsOfWhatWasAskedFor() =>
-        Assert.Equal("1e-3 .. 1e-11", new SurvivorRequest(3, 3, 11, SurvivorMode.Chart, SurvivorWalkChoice.Default).ScheduleLabel);
+        Assert.Equal("1e-3 .. 1e-11", new SurvivorRequest(3, 3, 11, SurvivorMode.Chart, SurvivorWalkChoice.Default, SurvivorWalkChoice.Default.DefaultLimit).ScheduleLabel);
 
     [Fact]
     public void Preamble_ReportsTheScheduleThatRanAndNotTheDefault()
@@ -1059,7 +1059,7 @@ public sealed class SurvivorReportTests
         // SVG's caption carries the same label from the same property, so they cannot disagree.
         using var notes = new StringWriter(CultureInfo.InvariantCulture);
 
-        SurvivorRun.Preamble(notes, new SurvivorRequest(3, 3, 11, SurvivorMode.Chart, SurvivorWalkChoice.Default), 9);
+        SurvivorRun.Preamble(notes, new SurvivorRequest(3, 3, 11, SurvivorMode.Chart, SurvivorWalkChoice.Default, SurvivorWalkChoice.Default.DefaultLimit), 9);
 
         string written = notes.ToString();
 
@@ -1573,7 +1573,7 @@ public sealed class SurvivorReportTests
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(
-            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", SurvivorWalkChoice.Denominator.Name, "1e-4", "Q = 50"));
+            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", SurvivorWalkChoice.Denominator.Name, SurvivorWalkChoice.Denominator.DescribeGuard(SurvivorWalkChoice.Denominator.DefaultLimit), "1e-4", "Q = 50"));
 
         string drawn = document.ToString();
 
@@ -1618,7 +1618,7 @@ public sealed class SurvivorReportTests
     {
         Assert.Null(SurvivorRun.Interpret(["3", "4", "13"], SurvivorMode.Deep, out SurvivorRequest request));
 
-        Assert.Equal(new SurvivorRequest(3, 4, 13, SurvivorMode.Deep, SurvivorWalkChoice.Default), request);
+        Assert.Equal(new SurvivorRequest(3, 4, 13, SurvivorMode.Deep, SurvivorWalkChoice.Default, SurvivorWalkChoice.Default.DefaultLimit), request);
         Assert.Equal(TargetSchedule.Decades(4, 13), request.Schedule());
     }
 
@@ -1627,7 +1627,7 @@ public sealed class SurvivorReportTests
     {
         Assert.Null(SurvivorRun.Interpret([], SurvivorMode.Deep, out SurvivorRequest request));
 
-        Assert.Equal(new SurvivorRequest(2, 2, 8, SurvivorMode.Deep, SurvivorWalkChoice.Farey), request);
+        Assert.Equal(new SurvivorRequest(2, 2, 8, SurvivorMode.Deep, SurvivorWalkChoice.Farey, SurvivorLimit.At(100_000_000)), request);
     }
 
     [Fact]
@@ -1664,8 +1664,8 @@ public sealed class SurvivorReportTests
         using var deep = new StringWriter(CultureInfo.InvariantCulture);
         using var chart = new StringWriter(CultureInfo.InvariantCulture);
 
-        SurvivorRun.Preamble(deep, new SurvivorRequest(3, 4, 13, SurvivorMode.Deep, SurvivorWalkChoice.Default), 10);
-        SurvivorRun.Preamble(chart, new SurvivorRequest(3, 4, 13, SurvivorMode.Chart, SurvivorWalkChoice.Default), 10);
+        SurvivorRun.Preamble(deep, new SurvivorRequest(3, 4, 13, SurvivorMode.Deep, SurvivorWalkChoice.Default, SurvivorWalkChoice.Default.DefaultLimit), 10);
+        SurvivorRun.Preamble(chart, new SurvivorRequest(3, 4, 13, SurvivorMode.Chart, SurvivorWalkChoice.Default, SurvivorWalkChoice.Default.DefaultLimit), 10);
 
         Assert.Contains("ONE pass over every enclosure", deep.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("ONE pass", chart.ToString(), StringComparison.Ordinal);
@@ -1684,7 +1684,7 @@ public sealed class SurvivorReportTests
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(
-            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", SurvivorWalkChoice.Denominator.Name, "1e-2 .. 1e-4", "Q = 2"));
+            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", SurvivorWalkChoice.Denominator.Name, SurvivorWalkChoice.Denominator.DescribeGuard(SurvivorWalkChoice.Denominator.DefaultLimit), "1e-2 .. 1e-4", "Q = 2"));
 
         XDocument parsed = XDocument.Parse(document.ToString());
         string drawn = document.ToString();
@@ -1707,7 +1707,7 @@ public sealed class SurvivorReportTests
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(
-            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", SurvivorWalkChoice.Denominator.Name, "1e-2 .. 1e-4", "Q = 2"));
+            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", SurvivorWalkChoice.Denominator.Name, SurvivorWalkChoice.Denominator.DescribeGuard(SurvivorWalkChoice.Denominator.DefaultLimit), "1e-2 .. 1e-4", "Q = 2"));
 
         XDocument parsed = XDocument.Parse(document.ToString());
 
@@ -1733,7 +1733,7 @@ public sealed class SurvivorReportTests
 
         using var document = new StringWriter(CultureInfo.InvariantCulture);
         SurvivorChart.Write(document, report, new ChartCaption(
-            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", SurvivorWalkChoice.Denominator.Name, "1e-1", "Q = 1"));
+            "pi^2 / zeta(2)", "MachinPi, EulerMaclaurinZeta(2)", SurvivorWalkChoice.Denominator.Name, SurvivorWalkChoice.Denominator.DescribeGuard(SurvivorWalkChoice.Denominator.DefaultLimit), "1e-1", "Q = 1"));
 
         string drawn = document.ToString();
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 
 namespace HalHeinrich.Numerics.Experiments;
@@ -80,6 +81,22 @@ internal abstract class SurvivorWalkChoice
     /// <summary>Gets whether this is the walk a run uses when none is named.</summary>
     public bool IsDefault => ReferenceEquals(this, Default);
 
+    /// <summary>
+    /// Gets the survivor limit this walk runs under when the caller gives none:
+    /// <see cref="SurvivorCountGuard.DefaultLimit"/> for <see cref="FareyWalk"/>, and
+    /// <see cref="SurvivorLimit.None"/> for <see cref="DenominatorWalk"/>.
+    /// </summary>
+    public abstract SurvivorLimit DefaultLimit { get; }
+
+    /// <summary>Gets whether a caller may set this walk's survivor limit.</summary>
+    /// <remarks>
+    /// <b>The one statement of which walks take a limit.</b> <see cref="SurvivorRun.Interpret"/>
+    /// asks it to refuse a limit given beside a walk that would ignore it - the reference walk is
+    /// bounded by time, and a limit silently dropped would mislead whoever set it - and
+    /// <see cref="Admit"/> asks it to refuse a request built past the grammar.
+    /// </remarks>
+    public bool TakesSurvivorLimit => DefaultLimit.Count is not null;
+
     /// <summary>The walk a caller named, or null when the word names none.</summary>
     /// <param name="argument">The word as typed. Matched without regard to case, as the commands are.</param>
     /// <returns>The walk, or null.</returns>
@@ -107,8 +124,36 @@ internal abstract class SurvivorWalkChoice
     public abstract SurvivorAdmission Admit(
         IReadOnlyList<Approximation> enclosures, BigInteger derived, SurvivorRequest request);
 
+    /// <summary>What guards this walk, as a label prints it.</summary>
+    /// <param name="limit">The survivor limit the run was asked for.</param>
+    /// <returns><c>survivor limit 100,000,000</c>, or <c>time budget 300 s</c>.</returns>
+    public abstract string DescribeGuard(SurvivorLimit limit);
+
     /// <inheritdoc/>
     public override string ToString() => Name;
+
+    /// <summary>Refuses a request whose limit does not fit this walk, which only a hand-built one can carry.</summary>
+    /// <param name="request">The request being admitted.</param>
+    /// <exception cref="ArgumentException">
+    /// The request names this walk and a limit it does not take, or takes a limit and names none.
+    /// </exception>
+    /// <remarks>
+    /// An exception rather than a refusal because no argument a caller can type reaches it:
+    /// <see cref="SurvivorRun.Interpret"/> refuses the one spelling that would. So it is a defect in
+    /// whoever built the request, and a run that ignored the mismatch would walk under a guard
+    /// nobody asked for.
+    /// </remarks>
+    private protected void RequireFittingLimit(SurvivorRequest request)
+    {
+        if (!ReferenceEquals(request.Walk, this) || TakesSurvivorLimit != (request.Limit.Count is not null))
+        {
+            throw new ArgumentException(
+                "This request pairs a walk with a survivor limit it does not take, or omits the one it " +
+                "does. SurvivorRun.Interpret never builds one; a caller building a request by hand " +
+                "takes the walk's DefaultLimit.",
+                nameof(request));
+        }
+    }
 
     /// <summary>
     /// <see cref="FareyWalk"/>, guarded by <see cref="SurvivorCountGuard"/>: no calibration, no
@@ -117,6 +162,13 @@ internal abstract class SurvivorWalkChoice
     private sealed class FareyChoice() : SurvivorWalkChoice("farey", new FareyWalk())
     {
         /// <inheritdoc/>
+        public override SurvivorLimit DefaultLimit { get; } = SurvivorLimit.At(SurvivorCountGuard.DefaultLimit);
+
+        /// <inheritdoc/>
+        public override string DescribeGuard(SurvivorLimit limit) =>
+            string.Create(CultureInfo.InvariantCulture, $"survivor limit {limit.Count:N0}");
+
+        /// <inheritdoc/>
         /// <remarks>
         /// Walks to the derived bound, which nothing caps: a count guard refuses rather than
         /// shrinking <c>Q</c>, and <see cref="SurvivorRun.Afford"/> is the reference walk's.
@@ -124,7 +176,9 @@ internal abstract class SurvivorWalkChoice
         public override SurvivorAdmission Admit(
             IReadOnlyList<Approximation> enclosures, BigInteger derived, SurvivorRequest request)
         {
-            SurvivorLimit limit = SurvivorLimit.At(SurvivorCountGuard.DefaultLimit);
+            RequireFittingLimit(request);
+
+            SurvivorLimit limit = request.Limit;
             SurvivorCountRefusal? refusal = SurvivorCountGuard.Refuse(enclosures, derived, request.Mode, limit);
 
             return refusal is not null
@@ -144,6 +198,13 @@ internal abstract class SurvivorWalkChoice
     private sealed class DenominatorChoice() : SurvivorWalkChoice("denominator", new DenominatorWalk())
     {
         /// <inheritdoc/>
+        public override SurvivorLimit DefaultLimit => SurvivorLimit.None;
+
+        /// <inheritdoc/>
+        public override string DescribeGuard(SurvivorLimit limit) =>
+            string.Create(CultureInfo.InvariantCulture, $"time budget {SurvivorRun.BudgetSeconds} s");
+
+        /// <inheritdoc/>
         /// <remarks>
         /// Unchanged from when this was the only walk - the user's ruling on
         /// <c>halheinrich/Math#79</c> leg 2 keeps the reference walk's time model as it was, and
@@ -154,6 +215,8 @@ internal abstract class SurvivorWalkChoice
         public override SurvivorAdmission Admit(
             IReadOnlyList<Approximation> enclosures, BigInteger derived, SurvivorRequest request)
         {
+            RequireFittingLimit(request);
+
             WalkPrice price = SurvivorRun.Calibrate(enclosures, derived, request.Mode);
 
             if (request.Mode == SurvivorMode.Deep)

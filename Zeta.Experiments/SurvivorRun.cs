@@ -382,7 +382,8 @@ internal static class SurvivorRun
     /// <param name="arguments">
     /// Nothing, the order alone, or the order followed by both ends of the schedule -
     /// <c>survivors</c>, <c>survivors 3</c>, <c>survivors 3 2 12</c>, and the same after <c>deep</c> -
-    /// then, optionally and last, the walk: <c>survivors 3 2 12 denominator</c>, or <c>deep farey</c>.
+    /// then, optionally and last, the walk: <c>survivors 3 2 12 denominator</c>, or <c>deep farey</c> -
+    /// and after <c>farey</c>, optionally, a survivor limit: <c>survivors 3 2 12 farey 500000000</c>.
     /// </param>
     /// <param name="mode">
     /// Which command the arguments followed. It changes no rule here, only which command a refusal
@@ -416,6 +417,18 @@ internal static class SurvivorRun
     /// else falls through to the schedule's rules and is refused as the number it was not, and a
     /// walk named anywhere but last is refused with where it goes.
     /// </para>
+    /// <para>
+    /// <b>The survivor limit follows its walk's word</b> - the user's ruling that the limit is
+    /// theirs to choose, with the umbrella's constraints. It is an exact positive integer, read
+    /// without floating point. It is accepted only after a walk that
+    /// <see cref="SurvivorWalkChoice.TakesSurvivorLimit"/>, and refused beside
+    /// <see cref="DenominatorWalk"/>, which is bounded by time and would ignore it. Written after
+    /// the word, so its position says it is a limit. One misreading remains, and it is not silent:
+    /// a walk put first and then an order, as in <c>survivors farey 3</c>, reads the 3 as a limit
+    /// of three survivors. The preamble prints that guard before anything runs, and a limit that
+    /// small refuses nearly every run on sight. Beside <c>denominator</c> the same slip is refused,
+    /// and the refusal offers the order reading.
+    /// </para>
     /// </remarks>
     public static string? Interpret(string[] arguments, SurvivorMode mode, out SurvivorRequest request)
     {
@@ -424,21 +437,58 @@ internal static class SurvivorRun
         request = default;
         string command = CommandFor(mode);
         SurvivorWalkChoice walk = SurvivorWalkChoice.Default;
+        SurvivorLimit limit = walk.DefaultLimit;
         string[] schedule = arguments;
+
+        string[] walkWords = [.. arguments.Where(argument => SurvivorWalkChoice.Named(argument) is not null)];
+        if (walkWords.Length > 1)
+        {
+            return string.Create(CultureInfo.InvariantCulture,
+                $"{string.Join(" and ", walkWords.Select(word => "'" + word + "'"))} each name a walk, and a " +
+                $"run takes one: {WalkWords()}, last.");
+        }
 
         int walkAt = Array.FindIndex(arguments, argument => SurvivorWalkChoice.Named(argument) is not null);
         if (walkAt >= 0)
         {
             string word = arguments[walkAt];
+            SurvivorWalkChoice named = SurvivorWalkChoice.Named(word)!;
+            int following = arguments.Length - 1 - walkAt;
+            string limitExample = string.Create(CultureInfo.InvariantCulture,
+                $"{command} 3 2 12 {SurvivorWalkChoice.Farey.Argument} 500000000");
 
-            if (walkAt != arguments.Length - 1)
+            if (following > 1)
             {
                 return string.Create(CultureInfo.InvariantCulture,
-                    $"'{word}' names a walk, and the walk goes last, after the order and the schedule: " +
-                    $"'{command} {word}', '{command} 3 {word}', or '{command} 3 2 12 {word}'.");
+                    $"'{word}' names a walk, and the walk goes last, after the order and the schedule - " +
+                    $"followed, for a walk that takes one, by a survivor limit and nothing else: " +
+                    $"'{command} {word}', '{command} 3 {word}', '{command} 3 2 12 {word}', or " +
+                    $"'{limitExample}'.");
             }
 
-            walk = SurvivorWalkChoice.Named(word)!;
+            if (following == 1)
+            {
+                if (!named.TakesSurvivorLimit)
+                {
+                    return string.Create(CultureInfo.InvariantCulture,
+                        $"'{arguments[^1]}' after '{word}' would be a survivor limit, and {named.Name} takes " +
+                        $"none: it is guarded by its {named.DescribeGuard(named.DefaultLimit)} instead, and a " +
+                        $"limit it ignored would mislead whoever set it. A limit goes after " +
+                        $"'{SurvivorWalkChoice.Farey.Argument}', as in '{limitExample}'. If you meant it " +
+                        $"as the order, the walk goes last: '{command} {arguments[^1]} {word}'.");
+                }
+
+                if (!SurvivorLimitNamed(arguments[^1], limitExample, out limit, out string? unreadableLimit))
+                {
+                    return unreadableLimit;
+                }
+            }
+            else
+            {
+                limit = named.DefaultLimit;
+            }
+
+            walk = named;
             schedule = arguments[..walkAt];
         }
 
@@ -448,7 +498,8 @@ internal static class SurvivorRun
                 $"{command} takes the order of zeta, and then both ends of the schedule or " +
                 $"neither: '{command}', '{command} 3', or '{command} 3 2 12'. One exponent alone " +
                 $"would leave it guessing which end of the schedule you meant. A walk, " +
-                $"{WalkWords()}, may follow last.");
+                $"{WalkWords()}, may follow last, and after '{SurvivorWalkChoice.Farey.Argument}' a " +
+                $"survivor limit.");
         }
 
         int order = DefaultOrder;
@@ -476,8 +527,38 @@ internal static class SurvivorRun
             return refusal;
         }
 
-        request = new SurvivorRequest(order, first, last, mode, walk);
+        request = new SurvivorRequest(order, first, last, mode, walk, limit);
         return null;
+    }
+
+    /// <summary>Reads a survivor limit, or explains why the argument is not one.</summary>
+    /// <param name="argument">The text as it arrived.</param>
+    /// <param name="example">An invocation that would have worked.</param>
+    /// <param name="limit">The limit, when this returns true.</param>
+    /// <param name="refusal">The explanation, when this returns false.</param>
+    /// <returns>True when the argument is a whole number of survivors, at least one.</returns>
+    /// <remarks>
+    /// <b>An exact integer, parsed without floating point</b> - the umbrella's constraint on the
+    /// user's ruling. Digits only: no sign, no separator, no decimal point and no exponent, so
+    /// <c>1e8</c> is refused rather than read through a <see cref="double"/>, and nothing that parses
+    /// can mean anything other than the digits it shows. Zero is refused, since a limit of zero
+    /// refuses every run with a survivor in it, which is every control.
+    /// </remarks>
+    private static bool SurvivorLimitNamed(string argument, string example, out SurvivorLimit limit, out string? refusal)
+    {
+        if (long.TryParse(argument, NumberStyles.None, CultureInfo.InvariantCulture, out long survivors) && survivors >= 1)
+        {
+            limit = SurvivorLimit.At(survivors);
+            refusal = null;
+            return true;
+        }
+
+        limit = default;
+        refusal = string.Create(CultureInfo.InvariantCulture,
+            $"'{argument}' is not a survivor limit. Give a whole number of survivors, at least 1 and at " +
+            $"most {long.MaxValue}, in digits alone - no sign, separator, decimal point or exponent - " +
+            $"as in '{example}'.");
+        return false;
     }
 
     /// <summary>The walk words as a refusal lists them: <c>'farey' (the default) or 'denominator'</c>.</summary>
@@ -883,7 +964,7 @@ internal static class SurvivorRun
                 $"is, and the LAST only raises the Q the precision supports, which is not what is short.\n" +
                 $"The price is this machine's, measured before the walk; a faster one reaches further.\n" +
                 $"Or walk with {SurvivorWalkChoice.Farey.Name}, which no budget caps: " +
-                $"'{(request with { Mode = SurvivorMode.Deep, Walk = SurvivorWalkChoice.Farey }).Invocation(request.FirstExponent, request.LastExponent)}'.")
+                $"'{(request with { Mode = SurvivorMode.Deep }).WithWalk(SurvivorWalkChoice.Farey).Invocation(request.FirstExponent, request.LastExponent)}'.")
             : null;
     }
 
@@ -1402,6 +1483,7 @@ internal static class SurvivorRun
             string.Create(CultureInfo.InvariantCulture, $"pi^{request.Order} / zeta({request.Order})"),
             string.Create(CultureInfo.InvariantCulture, $"MachinPi, EulerMaclaurinZeta({request.Order})"),
             request.Walk.Name,
+            request.GuardLabel,
             string.Create(CultureInfo.InvariantCulture,
                 $"{request.ScheduleLabel}, {run.Iterations.Count} targets, " +
                 $"{enclosures.Count} distinct enclosures"),
@@ -1430,6 +1512,8 @@ internal static class SurvivorRun
         notes.WriteLine();
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  providers   MachinPi, EulerMaclaurinZeta({order})   walk  {request.Walk.Name}"));
+        notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"  guard       {request.GuardLabel}"));
         notes.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"  schedule    {request.ScheduleLabel}, {columns} targets"));
 

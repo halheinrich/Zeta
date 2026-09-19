@@ -35,13 +35,19 @@ internal enum SurvivorMode
 
 /// <summary>
 /// What one <c>survivors</c> or <c>deep</c> invocation asks for: an order of zeta, the two ends of
-/// the schedule the run is driven to, how the enclosures are walked, and which walk does it.
+/// the schedule the run is driven to, how the enclosures are walked, which walk does it, and the
+/// survivor limit it walks under.
 /// </summary>
 /// <param name="Order">The order of zeta, as in <c>pi^n / zeta(n)</c>.</param>
 /// <param name="FirstExponent">The first target's exponent, as <c>10^-firstExponent</c>.</param>
 /// <param name="LastExponent">The last target's exponent, as <c>10^-lastExponent</c>.</param>
 /// <param name="Mode">Which command it came from, and so how the enclosures are walked.</param>
 /// <param name="Walk">Which survivor walk runs, and so which guard prices it.</param>
+/// <param name="Limit">
+/// The survivor limit: the caller's, or <see cref="SurvivorWalkChoice.DefaultLimit"/> of the walk -
+/// 1e8 for <see cref="FareyWalk"/>, and <see cref="SurvivorLimit.None"/> for
+/// <see cref="DenominatorWalk"/>, which is bounded by time and takes no limit.
+/// </param>
 /// <remarks>
 /// <para>
 /// <b>This validates nothing, and that is the same decision <see cref="TargetSchedule"/> records
@@ -62,7 +68,7 @@ internal enum SurvivorMode
 /// </para>
 /// </remarks>
 internal readonly record struct SurvivorRequest(
-    int Order, int FirstExponent, int LastExponent, SurvivorMode Mode, SurvivorWalkChoice Walk)
+    int Order, int FirstExponent, int LastExponent, SurvivorMode Mode, SurvivorWalkChoice Walk, SurvivorLimit Limit)
 {
     /// <summary>The command this request came from, as a caller types it.</summary>
     public string Command => SurvivorRun.CommandFor(Mode);
@@ -70,17 +76,54 @@ internal readonly record struct SurvivorRequest(
     /// <summary>The invocation that would repeat this request with the schedule's ends moved.</summary>
     /// <param name="firstExponent">The first end to show.</param>
     /// <param name="lastExponent">The last end to show.</param>
-    /// <returns>As a caller types it: <c>deep 18 2 11</c>, or <c>deep 18 2 11 denominator</c>.</returns>
+    /// <returns>
+    /// As a caller types it: <c>deep 18 2 11</c>, <c>deep 18 2 11 denominator</c>, or
+    /// <c>deep 18 2 11 farey 500000000</c>.
+    /// </returns>
     /// <remarks>
-    /// <b>Every refusal that offers something to copy renders it here</b>, so the walk the run
-    /// used is in the copy whenever it is not the default - a refusal under
+    /// <b>Every refusal that offers something to copy renders it here</b>, so the walk and the
+    /// limit the run used are in the copy whenever they are not the defaults - a refusal under
     /// <see cref="DenominatorWalk"/> that offered an invocation without the word would, pasted,
-    /// run the other walk under the other guard. The default walk is left out so the invocation
-    /// is the shortest that means the same thing.
+    /// run the other walk under the other guard, and one dropping a limit would run under another.
+    /// Defaults are left out so the invocation is the shortest that means the same thing; a limit
+    /// is written after its walk's word, which is where the grammar takes it.
     /// </remarks>
-    public string Invocation(int firstExponent, int lastExponent) =>
-        string.Create(CultureInfo.InvariantCulture, $"{Command} {Order} {firstExponent} {lastExponent}") +
-        (Walk.IsDefault ? "" : " " + Walk.Argument);
+    public string Invocation(int firstExponent, int lastExponent)
+    {
+        string invocation = string.Create(CultureInfo.InvariantCulture, $"{Command} {Order} {firstExponent} {lastExponent}");
+
+        if (Limit != Walk.DefaultLimit)
+        {
+            return invocation + " " + Walk.Argument + string.Create(CultureInfo.InvariantCulture, $" {Limit.Count}");
+        }
+
+        return Walk.IsDefault ? invocation : invocation + " " + Walk.Argument;
+    }
+
+    /// <summary>The same request under another walk, at that walk's default limit.</summary>
+    /// <param name="walk">The walk to switch to.</param>
+    /// <returns>The request, walked by <paramref name="walk"/> under its <see cref="SurvivorWalkChoice.DefaultLimit"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="walk"/> is null.</exception>
+    /// <remarks>
+    /// <b>Use this rather than <c>with { Walk = ... }</c></b>, which keeps the old walk's limit: the
+    /// reference walk would then carry a survivor limit it does not take, and an invocation
+    /// rendered from it would offer <c>denominator 100000000</c>. A limit belongs to the walk it was
+    /// given with, so changing the walk resets it.
+    /// </remarks>
+    public SurvivorRequest WithWalk(SurvivorWalkChoice walk)
+    {
+        ArgumentNullException.ThrowIfNull(walk);
+
+        return this with { Walk = walk, Limit = walk.DefaultLimit };
+    }
+
+    /// <summary>What guards the walk, as the preamble and the chart print it beside the walk's name.</summary>
+    /// <remarks>
+    /// <c>survivor limit 100,000,000</c>, or <c>time budget 300 s</c>. Shown wherever the walk is,
+    /// default or not, because it is half of what the walk was allowed to do; which guard a walk
+    /// has is the walk's to say.
+    /// </remarks>
+    public string GuardLabel => Walk.DescribeGuard(Limit);
 
     /// <summary>The schedule as every report here names it: <c>1e-2 .. 1e-8</c>.</summary>
     /// <remarks>
