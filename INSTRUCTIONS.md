@@ -624,17 +624,17 @@ positive on cases that have actually been observed. There is deliberately no
 property here reporting stability, convergence or an answer, for the same
 reason `TrendMatrix` has none.
 
-The schedule of targets is the caller's. How far a run should go, and in how
-many columns, is a property of the question being asked; § 2 fixes only that
-the run is driven to a *fixed* target rather than stopped on what the output
-looks like.
+Why that schedule is the caller's, and why a run is driven to a fixed target
+rather than stopped on what its output looks like, is stated once in
+`../SPEC-rational-ratio.md` § 2, "Sizing a run". This repo refers there rather
+than restating it.
 
 ### Which candidates reach the matrix
 
 Every candidate every iteration's search yielded, not only the terminating
-one. A matrix row is dense, so a candidate first surfaced late still carries a
-distance for every earlier column — and the early low-height candidates are
-exactly the rows a plateau is read from.
+one. The early low-height candidates are exactly the rows a plateau is read
+from. What a row holds for the columns before its candidate surfaced is
+`TrendRow`'s to state, in `RationalApproximation`, and is not restated here.
 
 `TrendIteration` leaves that choice to the caller on purpose, so a consumer
 wanting to watch a rational no search produced — a positive control such as 6,
