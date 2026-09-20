@@ -98,9 +98,9 @@ internal static class RatioWalk
     /// <para>
     /// A caller wanting to watch a rational no search produced adds it to any one iteration's
     /// contribution and rebuilds; the matrix fills that row for every column regardless, because
-    /// a row is dense. The rungs go onto the first iteration, so their <c>FirstSeenAt</c> is 0 and
-    /// the panel reads as a fixed ladder present from the start rather than as candidates
-    /// arriving late.
+    /// a <see cref="TrendRow"/> is dense. The rungs go onto the first iteration, so their
+    /// <c>FirstSeenAt</c> is 0 and the panel reads as a fixed ladder present from the start
+    /// rather than as candidates arriving late.
     /// </para>
     /// <para>
     /// The enclosure each rung is measured against is the first column's. That choice is

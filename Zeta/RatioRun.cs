@@ -91,10 +91,10 @@ public sealed class RatioRun
     /// <exception cref="ArgumentException"><paramref name="targetErrors"/> is not strictly decreasing, or its last element is not positive.</exception>
     /// <remarks>
     /// <para>
-    /// The schedule of targets is the caller's, deliberately. How far a run should go, and in how
-    /// many columns, is a property of the question being asked rather than of the pipeline;
-    /// section 2 fixes only that the run is driven to a <i>fixed</i> target rather than stopped on
-    /// what the output looks like.
+    /// This method takes its schedule of targets and computes none. Why the schedule is the
+    /// caller's, and why a run is driven to a fixed target rather than stopped on what its output
+    /// looks like, is stated once in <c>SPEC-rational-ratio.md</c> § 2, "Sizing a run", and is not
+    /// restated here.
     /// </para>
     /// <para>
     /// Both providers are refined incrementally across the whole run, so the cost of the last
